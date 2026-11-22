@@ -1,0 +1,14 @@
+osmium
+geopandas
+pandas
+pyarrow
+shapely
+pyproj
+pyogrio
+numpy
+rasterio
+pillow
+matplotlib
+fonttools
+brotli
+ipykernel
