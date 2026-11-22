@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Santiago under the lid</title>
+<meta name="description" content="A case study of a 3D page that replays Santiago de Chile's June 2026 winter smog episode hour by hour over the real terrain and about 72,000 buildings, with PM2.5 from nine SINCA stations and the lid height from ERA5.">
+<style>
+/* Fonts are stored next to this page (docs/fonts), both under the SIL Open Font License */
+@font-face { font-family: "Bricolage Grotesque"; src: url("fonts/bricolage-grotesque-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Bricolage Grotesque"; src: url("fonts/bricolage-grotesque-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("fonts/newsreader-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("fonts/newsreader-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("fonts/newsreader-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+
+:root {
+  --ink: #1d2433;        /* body text */
+  --muted: #5b6474;      /* captions and notes */
+  --haze: #c9cdd4;       /* the smog bands in the margin */
+  --head: #3a4350;       /* headings: smog slate */
+  --blue: #3d5a80;       /* the lid: the page's mixing layer blue */
+  --orange: #9a3412;     /* preemergencia brown, as on the page */
+  --amber: #d97706;      /* alerta */
+  --paper: #ffffff;
+  --rule: #e6e8ec;
+  --sans: "Bricolage Grotesque", "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 19px; line-height: 1.65; }
+a { color: var(--head); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+
+/* ---------- Opening ---------- */
+.opening { max-width: 1080px; margin: 0 auto; padding: 56px 24px 24px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 48px; align-items: start; }
+.opening h1 { font-family: var(--sans); font-weight: 700; font-size: 3.2rem; line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 20px; color: var(--head); }
+.standfirst { font-size: 1.25rem; line-height: 1.5; margin: 0 0 24px; max-width: 34em; }
+.byline { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--muted); margin: 0 0 16px; }
+.links { list-style: none; margin: 0; padding: 0; font-family: var(--sans); font-weight: 600; font-size: 0.95rem; }
+.links li { margin: 6px 0; }
+.lead { margin: 0; }
+.lead img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+figcaption { font-size: 0.85rem; line-height: 1.45; color: var(--muted); margin-top: 8px; font-style: italic; }
+
+/* ---------- The margin: thin smog bands, bunched towards the bottom of each group like the page's smog sheets ---------- */
+.line { max-width: 1080px; margin: 0 auto; padding: 8px 24px 64px; }
+.line-inner { position: relative; padding-left: 64px; max-width: 800px; margin-left: -64px; }   /* the bands sit in the margin, so text lines up with the title */
+.line-inner::before {
+  content: ""; position: absolute; left: 6px; top: 18px; bottom: 30px; width: 24px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='96'%3E%3Cg stroke='%23c9cdd4' stroke-width='1.6' stroke-linecap='round'%3E%3Cline x1='5' y1='8' x2='19' y2='8' opacity='0.35'/%3E%3Cline x1='3' y1='34' x2='21' y2='34' opacity='0.5'/%3E%3Cline x1='4' y1='52' x2='20' y2='52' opacity='0.6'/%3E%3Cline x1='2' y1='66' x2='22' y2='66' opacity='0.75'/%3E%3Cline x1='3' y1='77' x2='21' y2='77' opacity='0.85'/%3E%3Cline x1='2' y1='85' x2='22' y2='85'/%3E%3Cline x1='3' y1='91' x2='21' y2='91'/%3E%3C/g%3E%3C/svg%3E") center top / 24px 96px repeat-y;
+}
+section { position: relative; margin-top: 48px; }
+h2 { font-family: var(--sans); font-weight: 700; font-size: 1.6rem; line-height: 1.2; color: var(--head); margin: 0 0 12px; }
+h2::before { /* each section: the lid, a flat bar with smog pressed under it */
+  content: ""; position: absolute; left: -63px; top: 6px; width: 32px; height: 18px;
+  background:
+    linear-gradient(var(--head), var(--head)) 0 0 / 32px 5px no-repeat,
+    linear-gradient(rgba(58, 67, 80, 0.38), rgba(58, 67, 80, 0.06)) 2px 7px / 28px 9px no-repeat,
+    var(--paper);
+  border-radius: 1px;
+}
+h3 { font-family: var(--sans); font-weight: 600; font-size: 1.15rem; line-height: 1.3; margin: 32px 0 6px; position: relative; color: var(--ink); }
+h3::before { /* a short dash for each finding */
+  content: ""; position: absolute; left: -57px; top: 10px; width: 20px; height: 4px;
+  border-radius: 2px; background: var(--head); box-shadow: 0 0 0 4px var(--paper);
+}
+h3.blue::before { background: var(--blue); }
+h3.orange::before { background: var(--orange); }
+p { margin: 0 0 14px; max-width: 40em; }
+.figure-line { font-family: var(--sans); margin: 4px 0 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.figure-line b { font-weight: 700; font-size: 2rem; line-height: 1; color: var(--head); }
+.figure-line.blue b { color: var(--blue); }
+.figure-line.orange b { color: var(--orange); }
+.figure-line span { font-weight: 600; font-size: 0.95rem; color: var(--muted); }
+ul.plain { margin: 0 0 14px; padding-left: 1.1em; max-width: 40em; }
+ul.plain li { margin: 6px 0; }
+.wide { margin: 18px 0 8px; }
+.wide img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+.wide.chart a { display: block; cursor: zoom-in; }
+table { border-collapse: collapse; font-family: var(--sans); font-size: 0.92rem; margin: 8px 0 16px; }
+th, td { text-align: left; padding: 6px 18px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; padding-left: 18px; }
+td.num.hi { color: var(--head); font-weight: 700; }
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.terminus { max-width: none; margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted); }
+
+/* ---------- Chart pop-out: a click opens the chart over the page, a click or Esc closes it ---------- */
+#zoom { position: fixed; inset: 0; z-index: 50; background: rgba(20, 24, 32, 0.82); display: none; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
+#zoom.on { display: flex; }
+#zoom img { max-width: 100%; max-height: 100%; background: #fff; border-radius: 4px; box-shadow: 0 6px 30px rgba(0,0,0,0.5); }
+#zoom .close { position: absolute; top: 14px; right: 18px; font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: #fff; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.5); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 900px) {
+  .opening { grid-template-columns: 1fr; gap: 28px; padding-top: 32px; }
+  .opening h1 { font-size: 2.4rem; }
+  .lead { max-width: 420px; }
+  .line-inner { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  body { font-size: 17px; }
+  .opening, .line { padding-left: 16px; padding-right: 16px; }
+  .line-inner { padding-left: 36px; }
+  .line-inner::before { left: 0; width: 18px; background-size: 18px 72px; }
+  h2::before { left: -40px; transform: scale(0.72); transform-origin: left top; }
+  h3::before { left: -34px; width: 14px; height: 3px; top: 10px; }
+  table { font-size: 0.85rem; }
+  th, td { padding-right: 10px; }
+}
+
+/* ---------- PDF and printing ---------- */
+@page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+@media print {
+  #zoom { display: none !important; }
+  body { font-size: 10pt; line-height: 1.4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: var(--ink); text-decoration: none; }
+  .opening { grid-template-columns: minmax(0, 1fr) 72mm; gap: 8mm; padding: 0 0 4mm; max-width: none; }
+  .opening h1 { font-size: 26pt; }
+  .standfirst { font-size: 12.5pt; }
+  .web-link { display: none; }
+  .line { padding: 0; max-width: none; }
+  .line-inner { max-width: none; margin-left: 0; }
+  section { margin-top: 3mm; }
+  p, ul.plain li { orphans: 3; widows: 3; }
+  h2 { font-size: 15pt; break-after: avoid; }
+  h3 { font-size: 11.5pt; margin-top: 4mm; break-after: avoid; }
+  .figure-line b { font-size: 17pt; }
+  .wide { break-inside: avoid; }
+  .wide img { max-height: 60mm; width: auto; max-width: 100%; }
+  .wide.chart img { max-height: 46mm; width: auto; max-width: 100%; height: auto; }
+  tr:first-child { break-after: avoid; }
+  table { break-inside: avoid; font-size: 8.4pt; margin: 1mm 0 3mm; }
+  table.list { break-inside: auto; }
+  tr { break-inside: avoid; }
+  .figure-line { break-inside: avoid; }
+  .table-wrap { overflow: visible; }   /* a scrolling box cannot be split across pages */
+  th, td { padding: 1mm 4mm 1mm 0; }
+  td.num { padding-left: 5mm; }
+  .figure-line span { font-size: 9pt; }
+  .terminus { margin-top: 2mm; padding-top: 1.5mm; font-size: 8.5pt; }
+  .links a[href^="http"]::after { content: " (" attr(href) ")"; font-weight: 400; color: var(--muted); }
+}
+
+/* ---------- The lid sketch, drawn inline (the same sketch as on the page) ---------- */
+.sketch { margin: 18px 0 8px; max-width: 560px; }
+.sketch svg { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+@media print { .sketch { break-inside: avoid; max-width: 82mm; } .wide.shot img { max-height: 42mm; } .wide.pair img { max-height: 46mm; width: 100%; height: auto; } }
+</style>
+</head>
+<body>
+
+<header class="opening">
+  <div>
+    <h1>Santiago under the lid</h1>
+    <p class="standfirst">For five days in June 2026, Santiago de Chile lived under smog alerts. This project rebuilds the city in 3D, about 72,000 buildings on the real terrain of the basin with the Andes behind, and plays the episode hour by hour: smog builds up every night under a lid of cold air that is often less than 30 m deep, and the afternoons are too short to clear it.</p>
+    <p class="byline">Lik Ren Tai, November 2026</p>
+    <ul class="links">
+      <li><a href="https://likrentai.github.io/santiagosmog/">Open the page</a></li>
+      <li><a href="https://github.com/likrentai/santiagosmog">Code, notebooks and data notes on GitHub</a></li>
+      <li class="web-link"><a href="case-study.pdf">Download this case study as a PDF</a></li>
+    </ul>
+  </div>
+  <figure class="lead">
+    <img src="images/cs_lead.jpg" width="800" height="450" alt="A 3D view of Santiago from above Cerro San Cristobal: the dark green hill in front, the Mapocho river bending through rows of pale grey buildings, the blue Gran Torre Costanera rising above the others, and the city fading into a grey haze towards the foot of the Andes">
+    <figcaption>Santiago at 15:00 on 14 June 2026, the worst day of the episode: a 24-hour PM2.5 average of 130 &micro;g/m&sup3; at Cerro Navia under a lid 370 m deep. Cerro San Cristobal in front, the Gran Torre Costanera in blue, the Andes behind.</figcaption>
+  </figure>
+</header>
+
+<main class="line">
+<div class="line-inner">
+
+<section>
+  <h2>The question</h2>
+  <p>Santiago is known for its winter smog. The city sits in a basin between the Coastal Range and the Andes, and on calm winter days its smoke has nowhere to go. Most pictures of an episode are a single photo of a grey skyline, or a line chart of PM2.5. Neither shows why the smog stays: the lid of cold air over the city, how low it sinks at night, and how little it rises in the afternoon.</p>
+  <p>The aim was to put the measurements back into the place they describe: the real ground of the basin, the city's buildings at their real heights, and the smog drawn from station readings and the lid height for every hour of one episode, from 11 to 19 June 2026. Preemergencia was declared on 13, 14, 15 and 17 June, and alerta on 16 June.</p>
+</section>
+
+<section>
+  <h2>The data</h2>
+  <div class="table-wrap"><table class="list">
+    <tr><th>What</th><th>Source</th><th>Used for</th></tr>
+    <tr><td>PM2.5, 24-hour rolling average, at 9 monitoring stations</td><td>SINCA, Ministerio del Medio Ambiente, through the OpenAQ archive</td><td>How much smog, and where</td></tr>
+    <tr><td>Boundary layer height, wind at 10 m, temperature at 2 m</td><td>ERA5 reanalysis (ECMWF, Copernicus), through Open-Meteo</td><td>The height of the lid, and the weather in the info box</td></tr>
+    <tr><td>Building outlines and mapped heights</td><td>OpenStreetMap, Chile extract from Geofabrik</td><td>71,773 buildings in a 16 by 9 km box around the centre</td></tr>
+    <tr><td>Average building height on a 100 m grid (2018)</td><td>GHS-BUILT-H R2023A, European Commission JRC</td><td>Heights where OpenStreetMap has none</td></tr>
+    <tr><td>Elevation tiles</td><td>Mapzen Terrarium, on AWS open data</td><td>The terrain, the ground under each building, the station heights</td></tr>
+    <tr><td>Satellite imagery and hillshade</td><td>Esri World Imagery and World Hillshade</td><td>The colour of the ground</td></tr>
+    <tr><td>Declared episodes</td><td>News reports (La Tercera, Emol, BioBioChile, T13)</td><td>Alerta and preemergencia days</td></tr>
+  </table></div>
+  <p>SINCA's own website refuses visitors from Korea, so the PM2.5 values come from SINCA's data as archived by OpenAQ. Nine of the fifteen Santiago stations tried had June 2026 readings: Talagante, Pudahuel, Cerro Navia, Quilicura, El Bosque, Parque O'Higgins, Puente Alto, La Florida and Las Condes.</p>
+</section>
+
+<section>
+  <h2>One page, four notebooks</h2>
+  <p>The page is a single 3D view. The reader moves the camera freely (nothing turns on its own), plays the episode at 1 to 8 hours a second, or drags along the time bar or the chart to any of its 215 hours. An info box gives the declared level, PM2.5 in the west and the east of the city, both layer heights, the wind and the temperature. Checkboxes turn each part of the smog on and off, and a short explainer shows how the lid traps smog.</p>
+  <figure class="wide shot">
+    <img src="images/cs_page.jpg" width="800" height="475" alt="The page: the 3D city in a grey haze with the Andes behind; a panel of checkboxes and notes on the left, an info box on the right showing Sunday 14 June 15:00, preemergencia declared, PM2.5 130 at Cerro Navia and 29 at Las Condes, a mixing layer of 368 m; at the bottom an episode chart and a time bar with a Play button">
+    <figcaption>The page at 15:00 on 14 June, with its panel, info box, episode chart and time bar.</figcaption>
+  </figure>
+  <div class="table-wrap"><table class="list">
+    <tr><th>Notebook</th><th>What it does</th></tr>
+    <tr><td>00buildings</td><td>Reads the 352 MB Chile extract of OpenStreetMap and keeps the buildings in the box around central Santiago.</td></tr>
+    <tr><td>01webbuildings</td><td>Gives every building a height and a ground level, simplifies the outlines and writes them for the web (11.8 MB).</td></tr>
+    <tr><td>02smogdata</td><td>Downloads PM2.5 for the stations and ERA5 for nine points across the basin, and checks both with charts.</td></tr>
+    <tr><td>03websmog</td><td>Cleans the PM2.5 series, builds the city lid and the residual layer, and writes the 23 kB episode file.</td></tr>
+  </table></div>
+  <p>The page runs on deck.gl: its TerrainLayer draws the basin from elevation tiles, and the buildings, smog, stations and labels are drawn on top.</p>
+</section>
+
+<section>
+  <h2>What the page shows</h2>
+
+  <h3>A week under the lid</h3>
+  <div class="figure-line"><b>132 &micro;g/m&sup3;</b><span>the highest 24-hour PM2.5 average, at Pudahuel and Cerro Navia on 14 June</span></div>
+  <p>The episode builds slowly. On 11 and 12 June PM2.5 at Cerro Navia sits around 45 to 55 &micro;g/m&sup3;. On the afternoon of 12 June the lid rises to only about 140 m, and over the next two days the 24-hour average climbs past the alerta level of 80 and the preemergencia level of 110, peaking on 14 June. It eases from 15 to 17 June without ever falling far, and drops below 60 on 18 June, when the lid finally rises to about 685 m.</p>
+  <figure class="wide chart">
+    <a href="images/cs_episode.png" title="Enlarge the chart"><img src="images/cs_episode.png" width="1560" height="740" alt="Two stacked charts from 11 to 19 June 2026. Top: PM2.5 24-hour averages at nine stations; Cerro Navia (dark line) rises from about 45 to 132 on 14 June, above the dashed preemergencia line at 110, and falls to about 40 on 18 June; Las Condes (grey line) stays between 21 and 33 until 17 June. A band along the top marks preemergencia declared on 13, 14, 15 and 17 June and alerta on 16 June. Bottom: the lid height; the ERA5 mixing layer rises to between 140 and 460 m in the afternoons and falls to almost nothing every night, then reaches 685 m on 18 June"></a>
+    <figcaption>PM2.5 at the nine stations (top) and the height of the lid (bottom), with the declared days along the top and the nights shaded. SINCA via OpenAQ; ERA5 via Open-Meteo. <span class="web-link">Click a chart to enlarge it; click again or press Esc to close.</span></figcaption>
+  </figure>
+
+  <h3 class="blue">How the lid traps smog</h3>
+  <div class="figure-line blue"><b>13 to 30 m</b><span>the depth of the mixing layer over the city every night of the episode (ERA5)</span></div>
+  <p>On clear winter nights the ground cools quickly and the air touching it becomes colder than the air above. This temperature inversion works like a lid: cold, heavy air near the ground cannot rise through the warmer air on top, so smoke from traffic, industry and wood stoves stays in a shallow layer. In the afternoon the sun warms the ground and the layer deepens, diluting the smog, but in this episode it reached only 140 to 460 m. Smog lifted during the day stays aloft overnight in a residual layer above the new lid; the page draws both layers.</p>
+  <figure class="sketch">
+    <svg role="img" aria-label="Two sketches of the Santiago basin between the Coastal Range and the Andes. Afternoon: the lid has risen and the smog is diluted in a deep layer of about 150 to 450 m. Night: warmer air above, the residual layer of smog aloft, and a lid of cold air only 13 to 30 m deep pressing the smog against the city." viewBox="0 0 360 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9">
+    <g>
+      <text x="85" y="11" text-anchor="middle" font-size="10.5" font-weight="600" fill="#333">Afternoon</text>
+      <circle cx="14" cy="22" r="6" fill="#f2b84b"/>
+      <rect x="0" y="62" width="170" height="50" fill="#7d8088" opacity="0.32"/>
+      <line x1="0" y1="62" x2="170" y2="62" stroke="#3d5a80" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="85" y="57" text-anchor="middle" fill="#3d5a80">the lid rises</text>
+      <text x="85" y="84" text-anchor="middle" fill="#333">smog diluted in a deep layer</text>
+      <text x="85" y="94" text-anchor="middle" fill="#555">(about 150 to 450 m)</text>
+      <path d="M0,70 Q16,82 30,110 L140,110 Q156,58 170,14 L170,150 L0,150 Z" fill="#a39a7e"/>
+      <g fill="#4a4a4a"><rect x="58" y="104" width="4" height="6"/><rect x="66" y="100" width="4" height="10"/><rect x="74" y="106" width="5" height="4"/><rect x="84" y="97" width="3" height="13"/><rect x="92" y="103" width="5" height="7"/><rect x="102" y="105" width="4" height="5"/></g>
+      <text x="12" y="140" fill="#fff">Coastal Range</text>
+      <text x="166" y="140" text-anchor="end" fill="#fff">Andes</text>
+    </g>
+    <g transform="translate(190,0)">
+      <text x="85" y="11" text-anchor="middle" font-size="10.5" font-weight="600" fill="#333">Night</text>
+      <path d="M14,16 a7,7 0 1,0 6,11 a5.5,5.5 0 1,1 -6,-11 Z" fill="#8a94a8"/>
+      <rect x="0" y="62" width="170" height="40" fill="#7d8088" opacity="0.16"/>
+      <text x="85" y="78" text-anchor="middle" fill="#555">residual layer: smog aloft</text>
+      <text x="85" y="57" text-anchor="middle" fill="#9a3412">warmer air above</text>
+      <rect x="0" y="100" width="170" height="12" fill="#3e4046" opacity="0.8"/>
+      <line x1="0" y1="100" x2="170" y2="100" stroke="#3d5a80" stroke-width="1.5"/>
+      <text x="78" y="96" text-anchor="middle" fill="#3d5a80">the lid: 13 to 30 m of cold air</text>
+      <path d="M0,70 Q16,82 30,110 L140,110 Q156,58 170,14 L170,150 L0,150 Z" fill="#a39a7e"/>
+      <g fill="#4a4a4a"><rect x="58" y="104" width="4" height="6"/><rect x="66" y="100" width="4" height="10"/><rect x="74" y="106" width="5" height="4"/><rect x="84" y="97" width="3" height="13"/><rect x="92" y="103" width="5" height="7"/><rect x="102" y="105" width="4" height="5"/></g>
+      <text x="12" y="140" fill="#fff">Coastal Range</text>
+      <text x="166" y="140" text-anchor="end" fill="#fff">Andes</text>
+    </g>
+  </svg>
+    <figcaption>The same sketch as in the page's explainer. Not to scale; heights from ERA5 for 11 to 19 June 2026.</figcaption>
+  </figure>
+
+  <h3 class="orange">West against east</h3>
+  <div class="figure-line orange"><b>130 and 29</b><span>&micro;g/m&sup3; at Cerro Navia (west) and Las Condes (east), at the same hour on 14 June</span></div>
+  <p>The smog is not spread evenly. The highest values were in the west of the city, at Pudahuel and Cerro Navia, about 500 m above sea level. Las Condes, about 800 m up on the slope towards the Andes, stayed between 21 and 33 &micro;g/m&sup3; until 17 June. On the page, the smog between stations is spread from their readings, so looking west from the centre the city fades into grey, while looking east the towers of Las Condes and the mountains stay in view.</p>
+  <figure class="wide pair">
+    <img src="images/cs_westeast.jpg" width="1612" height="450" alt="Two views from the same point over central Santiago at 15:00 on 14 June. Left, looking west: the city's grid of pale buildings disappears into a thick grey haze, with a station label reading Parque O'Higgins 77 and the Coastal Range just showing above the haze. Right, looking east: thick haze over the nearby streets, but Cerro San Cristobal, the towers of Providencia and Las Condes and the brown slopes of the Andes are clearly visible">
+    <figcaption>From the same point over the centre at 15:00 on 14 June: looking west towards Cerro Navia and Pudahuel (left), and east towards Las Condes and the Andes (right).</figcaption>
+  </figure>
+
+  <h3>The same view, two days apart</h3>
+  <div class="figure-line"><b>685 m</b><span>the lid on the afternoon of 18 June, the day the episode ended</span></div>
+  <p>At 15:00 on 18 June the mixing layer was 530 m deep and still rising, and PM2.5 at Cerro Navia had fallen to 40 &micro;g/m&sup3;. From the start view, the haze that covered the city and the foot of the Andes four days earlier is gone, and the satellite colours of the ground come back.</p>
+  <figure class="wide pair">
+    <img src="images/cs_twodays.jpg" width="1612" height="450" alt="The start view at 15:00 on two days. Left, 14 June: a grey veil over the city, the foot of the Andes lost in haze. Right, 18 June: the same city in clear air, with sharp buildings and the green and brown colours of the hills and the Andes">
+    <figcaption>The start view at 15:00 on 14 June (left; 130 &micro;g/m&sup3;, lid 370 m) and on 18 June (right; 40 &micro;g/m&sup3;, lid 530 m).</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>How the smog is drawn</h2>
+  <p>Only two numbers drive the smog each hour: the PM2.5 field and the lid. The field is spread from the nine stations by inverse distance weighting and fades out between 9 and 20 km from the nearest station. The smog itself is drawn in four ways, each of which can be turned off:</p>
+  <ul class="plain">
+    <li><b>Smog layers:</b> 14 thin sheets stacked from the basin floor to the top of the residual layer, closer together near the ground, more opaque inside the mixing layer than above it. Their grey follows PM2.5, from pale at 15 &micro;g/m&sup3; to dark soot at 130. A slowly drifting cloud texture keeps them from looking like flat glass; it is decorative.</li>
+    <li><b>Haze in the distance:</b> every pixel of the ground and the buildings is greyed by the length of its line of sight that runs through the smog, assuming about 3 km visibility at 130 &micro;g/m&sup3;.</li>
+    <li><b>Haze puffs:</b> 3,000 soft puffs drifting among the buildings.</li>
+    <li><b>The sky</b> greys towards the horizon as PM2.5 rises, and the smog dims at dusk and at night.</li>
+  </ul>
+  <p>Smog density follows the square of PM2.5 above 15 &micro;g/m&sup3;, not a straight line. This is a visual choice (see Problems). The stations stand as pins at their true ground heights, each with a dot in the smog grey of its reading. The ground is satellite imagery shaded by a hillshade, with snow added above 1,500 m; the snow line is illustrative.</p>
+</section>
+
+<section>
+  <h2>Problems in the data, and how they were handled</h2>
+  <ul class="plain">
+    <li><b>No hourly PM2.5.</b> The OpenAQ archive holds SINCA's 24-hour rolling average, not hourly readings. The page shows it as it is (it is also the measure used to declare episodes) and does not back-calculate hourly values; the rhythm within each day comes from the lid.</li>
+    <li><b>A jump that reverses.</b> El Bosque jumps by 18 &micro;g/m&sup3; at 01:00 on 12 June and drops back at 10:00, the mark of one bad hourly reading inside the 24-hour average. Such jumps (10 or more, reversed within a day) are subtracted from the hours in between; gaps of up to three hours are interpolated.</li>
+    <li><b>A lid that is not the inversion.</b> At night, ERA5's boundary layer height is the depth of air that still mixes, not the inversion top, so the day's smog stays above it. The page adds a residual layer that holds the afternoon height and sinks 3% an hour, labelled as an illustration.</li>
+    <li><b>Most buildings have no height.</b> Only 21% of the buildings have a mapped height in OpenStreetMap; a rule by building type gives 38%, the GHS-BUILT-H grid 41%, a fallback ten buildings. The 300 m Gran Torre Costanera is mapped as fourteen full-height pieces, so the page models it from its published shape.</li>
+    <li><b>Buildings floating or sunk into the hills.</b> deck.gl's terrain extension did not set the buildings on the ground on the test computer, so each building's ground level comes from the elevation tiles (lowest corner, minus 2 m).</li>
+    <li><b>A clean day that looked smoggy.</b> With density in a straight line from PM2.5, 18 June (40 &micro;g/m&sup3;, deep lid) looked greyer than 14 June (130 &micro;g/m&sup3;), as the deep lid carried thin smog over the hills. Density now follows the square of PM2.5: 5% of full strength at 40, not 22%.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Limits</h2>
+  <p>The page shows measurements in a modelled scene; it is not an air quality model. PM2.5 is a 24-hour average at nine points, spread between them by distance, so it misses hourly peaks and local hot spots. The lid is one ERA5 value for the whole city (two grid cells cover Santiago). The residual layer, cloud texture, puffs, drift and snow are illustrations; the smog does not move with the wind. How dark it looks rests on a visibility rule of thumb and the squared density. 79% of the building heights are estimated.</p>
+</section>
+
+<section>
+  <h2>Where this could be useful</h2>
+  <ul class="plain">
+    <li><b>Teaching:</b> inversions are hard to picture from a profile chart; watching the lid sink over a real city makes them concrete.</li>
+    <li><b>Public communication:</b> an episode in the reader's own city, hour by hour, beside the official measure and level.</li>
+    <li><b>Other basin cities:</b> the same open-data pipeline could show smog in Kathmandu, Mexico City or other cities ringed by mountains.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>About</h2>
+  <p>Lik Ren Tai applies data science in two fields: environmental science and railway systems. This project was built with Python (pyosmium, GeoPandas, pandas, rasterio, matplotlib) and deck.gl, with its TerrainLayer for the 3D ground.</p>
+  <p class="terminus">PM2.5: SINCA, Ministerio del Medio Ambiente de Chile, via the OpenAQ archive. Weather and boundary layer height: ERA5 (Copernicus Climate Change Service, ECMWF) via Open-Meteo (CC BY 4.0). Buildings: &copy; OpenStreetMap contributors (ODbL). Building heights: GHS-BUILT-H R2023A, European Commission JRC. Elevation: Mapzen Terrarium tiles on AWS open data. Imagery and hillshade: Esri, Maxar, Earthstar Geographics. Episode declarations: La Tercera, Emol, BioBioChile and T13. This is an independent project, not affiliated with or endorsed by any of the sources.</p>
+</section>
+
+</div>
+</main>
+<div id="zoom" role="dialog" aria-label="Enlarged chart"><button class="close" type="button">Close</button><img alt=""></div>
+<script>
+(function () {
+  const box = document.getElementById("zoom");
+  const big = box.querySelector("img");
+  function close() { box.classList.remove("on"); big.removeAttribute("src"); }
+  document.querySelectorAll(".wide.chart a").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      big.src = a.getAttribute("href");
+      big.alt = a.querySelector("img").alt;
+      box.classList.add("on");
+    });
+  });
+  box.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+})();
+</script>
+</body>
+</html>

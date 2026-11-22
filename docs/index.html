@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PF8: Santiago winter smog, June 2026</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/deck.gl@9.4.1/dist.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
+  body { background: linear-gradient(#b9cbe0 0%, #e3e8ee 55%, #eef0f2 100%); }
+  body.night { background: linear-gradient(#1b2433 0%, #3a4352 55%, #4a5262 100%) !important; }
+  #map { position: absolute; inset: 0; }
+  .box { position: absolute; z-index: 10; background: rgba(255, 255, 255, 0.92); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #222; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15); }
+  #panel { top: 12px; left: 12px; width: 270px; }
+  #panel h1 { font-size: 15px; margin: 0 0 2px 0; }
+  #panel .sub { font-size: 12px; color: #555; margin-bottom: 6px; }
+  #panel label { display: block; margin-top: 6px; }
+  #info { top: 12px; right: 12px; width: 250px; }
+  #info .when { font-size: 16px; font-weight: 600; }
+  #info .level { display: inline-block; margin: 4px 0 6px 0; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #fff; background: #888; }
+  #info table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #info td { padding: 1px 0; }
+  #info td.v { text-align: right; font-variant-numeric: tabular-nums; }
+  #legend { margin-top: 8px; font-size: 11.5px; color: #444; }
+  #legend .bar { height: 10px; border-radius: 3px; margin: 3px 0 1px 0; }
+  #legend .ticks { display: flex; justify-content: space-between; }
+  #timebar { left: 50%; transform: translateX(-50%); bottom: 26px; width: min(760px, calc(100% - 40px)); display: flex; align-items: center; gap: 10px; }
+  #timebar input[type=range] { flex: 1; }
+  #timebar button { width: 64px; padding: 4px 0; border-radius: 6px; border: 1px solid #999; background: #fff; cursor: pointer; font-size: 13px; }
+  #notes { font-size: 11px; color: #555; margin-top: 8px; line-height: 1.35; }
+  #status { margin-top: 6px; color: #555; font-size: 12px; }
+  #chartBox { left: 50%; transform: translateX(-50%); bottom: 84px; width: min(760px, calc(100% - 40px)); padding: 6px 10px 4px 10px; display: none; }
+  #chartCanvas { display: block; width: 100%; cursor: pointer; touch-action: none; }
+  #explainLink { margin-top: 8px; padding: 4px 10px; border-radius: 6px; border: 1px solid #999; background: #fff; cursor: pointer; font-size: 12.5px; }
+  #csLink { margin-top: 6px; font-size: 12px; color: #555; }
+  #csLink a { color: #3a4350; }
+  #explain { top: 12px; left: 308px; width: 380px; max-height: calc(100% - 270px); overflow-y: auto; display: none; font-size: 13px; line-height: 1.45; }
+  #explain h2 { font-size: 15px; margin: 0 0 6px 0; }
+  #explain p { margin: 6px 0; }
+  #explain .close { position: absolute; top: 6px; right: 8px; border: none; background: none; font-size: 18px; cursor: pointer; color: #555; }
+  #explain svg { display: block; width: 100%; height: auto; margin: 4px 0 2px 0; }
+  #explain .cap { font-size: 11.5px; color: #555; }
+  #credit { position: absolute; right: 6px; bottom: 4px; z-index: 10; font-size: 10.5px; color: #444; background: rgba(255, 255, 255, 0.75); padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel" class="box">
+  <h1>Santiago under the lid</h1>
+  <div class="sub">Winter smog episode, 11 to 19 June 2026</div>
+  <label><input id="sheetBox" type="checkbox"> Smog layers</label>
+  <label><input id="fogBox" type="checkbox"> Haze in the distance (fog)</label>
+  <label><input id="tintBox" type="checkbox"> Buildings tinted inside the smog</label>
+  <label><input id="particleBox" type="checkbox"> Haze puffs</label>
+  <label><input id="stationBox" type="checkbox"> Monitoring stations</label>
+  <label><input id="shadowBox" type="checkbox"> Cast shadows</label>
+  <label><input id="chartToggle" type="checkbox"> Episode chart</label>
+  <label>Lens: <select id="lensSel"><option value="normal">normal</option><option value="long">long (telephoto)</option></select></label>
+  <div id="notes">PM2.5: SINCA 24-hour rolling average (via OpenAQ) at the 9 stations shown, spread between them. Lid: ERA5 boundary layer height (via Open-Meteo), one value for the city; the residual layer overnight is an illustration. The cloud texture is decorative: only the colour and density come from the data. Haze in the distance assumes about 3 km visibility at 130 &micro;g/m&sup3;; the sky greys with PM2.5. Smog density follows the square of PM2.5 above 15 &micro;g/m&sup3;, so moderate days look much clearer than the worst ones (a visual choice).</div>
+  <button id="explainLink">How the lid traps smog</button>
+  <div id="csLink">Case study: <a href="case-study.html">how this was made, findings and limits</a> (<a href="case-study.pdf">PDF</a>)</div>
+  <div id="status">Loading...</div>
+  <div id="viewInfo" style="margin-top:4px;font-size:11px;color:#777;font-family:Consolas,monospace;"></div>
+</div>
+<div id="info" class="box">
+  <div class="when" id="when"></div>
+  <div class="level" id="level"></div>
+  <table>
+    <tr><td>PM2.5, <span id="worstName"></span></td><td class="v" id="worstVal"></td></tr>
+    <tr><td>PM2.5, Las Condes</td><td class="v" id="eastVal"></td></tr>
+    <tr><td>Mixing layer</td><td class="v" id="blhVal"></td></tr>
+    <tr><td>Residual layer</td><td class="v" id="resVal"></td></tr>
+    <tr><td>Wind (10 m)</td><td class="v" id="windVal"></td></tr>
+    <tr><td>Temperature</td><td class="v" id="tempVal"></td></tr>
+  </table>
+  <div id="legend">PM2.5, 24-hour average (&micro;g/m&sup3;)<div class="bar" id="legendBar"></div><div class="ticks" id="legendTicks"></div></div>
+</div>
+<div id="explain" class="box">
+  <button class="close" id="explainClose" title="Close (Esc)">&times;</button>
+  <h2>How the lid traps smog</h2>
+  <svg viewBox="0 0 360 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9">
+    <g>
+      <text x="85" y="11" text-anchor="middle" font-size="10.5" font-weight="600" fill="#333">Afternoon</text>
+      <circle cx="14" cy="22" r="6" fill="#f2b84b"/>
+      <rect x="0" y="62" width="170" height="50" fill="#7d8088" opacity="0.32"/>
+      <line x1="0" y1="62" x2="170" y2="62" stroke="#3d5a80" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="85" y="57" text-anchor="middle" fill="#3d5a80">the lid rises</text>
+      <text x="85" y="84" text-anchor="middle" fill="#333">smog diluted in a deep layer</text>
+      <text x="85" y="94" text-anchor="middle" fill="#555">(about 150 to 450 m)</text>
+      <path d="M0,70 Q16,82 30,110 L140,110 Q156,58 170,14 L170,150 L0,150 Z" fill="#a39a7e"/>
+      <g fill="#4a4a4a"><rect x="58" y="104" width="4" height="6"/><rect x="66" y="100" width="4" height="10"/><rect x="74" y="106" width="5" height="4"/><rect x="84" y="97" width="3" height="13"/><rect x="92" y="103" width="5" height="7"/><rect x="102" y="105" width="4" height="5"/></g>
+      <text x="12" y="140" fill="#fff">Coastal Range</text>
+      <text x="166" y="140" text-anchor="end" fill="#fff">Andes</text>
+    </g>
+    <g transform="translate(190,0)">
+      <text x="85" y="11" text-anchor="middle" font-size="10.5" font-weight="600" fill="#333">Night</text>
+      <path d="M14,16 a7,7 0 1,0 6,11 a5.5,5.5 0 1,1 -6,-11 Z" fill="#8a94a8"/>
+      <rect x="0" y="62" width="170" height="40" fill="#7d8088" opacity="0.16"/>
+      <text x="85" y="78" text-anchor="middle" fill="#555">residual layer: smog aloft</text>
+      <text x="85" y="57" text-anchor="middle" fill="#9a3412">warmer air above</text>
+      <rect x="0" y="100" width="170" height="12" fill="#3e4046" opacity="0.8"/>
+      <line x1="0" y1="100" x2="170" y2="100" stroke="#3d5a80" stroke-width="1.5"/>
+      <text x="78" y="96" text-anchor="middle" fill="#3d5a80">the lid: 13 to 30 m of cold air</text>
+      <path d="M0,70 Q16,82 30,110 L140,110 Q156,58 170,14 L170,150 L0,150 Z" fill="#a39a7e"/>
+      <g fill="#4a4a4a"><rect x="58" y="104" width="4" height="6"/><rect x="66" y="100" width="4" height="10"/><rect x="74" y="106" width="5" height="4"/><rect x="84" y="97" width="3" height="13"/><rect x="92" y="103" width="5" height="7"/><rect x="102" y="105" width="4" height="5"/></g>
+      <text x="12" y="140" fill="#fff">Coastal Range</text>
+      <text x="166" y="140" text-anchor="end" fill="#fff">Andes</text>
+    </g>
+  </svg>
+  <div class="cap">Sketch, not to scale. Heights from ERA5 for 11 to 19 June 2026.</div>
+  <p>Santiago lies in a basin about 500 m above sea level, between the Coastal Range to the west and the Andes to the east. In winter the air in the basin is often calm.</p>
+  <p>On clear winter nights the ground cools quickly and the air touching it becomes colder than the air above. This temperature inversion works like a lid: cold, heavy air near the ground cannot rise through the warmer air on top, so smoke from traffic, industry and wood stoves stays in a shallow layer.</p>
+  <p>The lid height on this page is ERA5's boundary layer height, the depth of air that mixes freely. During this episode it fell to 13 to 30 m every night, so a whole night of emissions was packed into very little air. In the afternoon the sun warms the ground and the layer grows, diluting the smog. On 12 June it reached only about 140 m, and PM2.5 climbed for the next two days. Smog lifted during the day stays aloft at night in the residual layer (drawn here as an illustration).</p>
+  <p>PM2.5 was highest in the west of the city (Pudahuel and Cerro Navia, 132 &micro;g/m&sup3; on 14 June) and lowest at Las Condes, higher up towards the Andes, which stayed between 21 and 33 until 17 June.</p>
+  <p>Episodes are declared a day ahead from a forecast. Measured as a 24-hour average, 80 to 109 &micro;g/m&sup3; is the alerta range and 110 to 169 the preemergencia range (dashed lines in the chart). The episode ended when the lid lifted: on 18 June the afternoon mixing layer reached about 685 m and PM2.5 at Cerro Navia fell below 60.</p>
+</div>
+<div id="chartBox" class="box"><canvas id="chartCanvas"></canvas></div>
+<div id="timebar" class="box">
+  <button id="playBtn">Play</button>
+  <input id="timeSlider" type="range" min="0" max="0" step="1">
+  <select id="speedSel"><option value="1">1 h/s</option><option value="2">2 h/s</option><option value="4">4 h/s</option><option value="8">8 h/s</option></select>
+</div>
+<div id="credit">PM2.5: SINCA (Ministerio del Medio Ambiente, Chile) via OpenAQ &middot; Lid, wind: ERA5 (Copernicus) via Open-Meteo &middot; Buildings &copy; OpenStreetMap contributors &middot; Heights where missing: GHS-BUILT-H R2023A (EC JRC) &middot; Terrain: Mapzen Terrarium (AWS) &middot; Imagery: Esri, Maxar, Earthstar Geographics &middot; Hillshade: Esri &middot; Gran Torre Costanera modelled from its published shape; snow line illustrative</div>
+<script>
+// ===================== SETTINGS =====================
+const START_VIEW = { longitude: -70.5890, latitude: -33.4205, zoom: 14.15, pitch: 75, bearing: 82, maxPitch: 85 };  // <- VISUAL: Cerro San Cristobal in front, Gran Torre Costanera and the Mapocho bend in the middle, the whole Andes ridge behind (chosen by Likren, 21 Nov 2026)
+const START_TIME = "2026-06-14T09:00";  // <- local time shown first (the worst morning)
+const START_SPEED = 2;  // <- hours of the episode per second when playing
+const START_LENS = "normal";  // <- "normal" or "long"
+const LENS_NORMAL_DEG = 36.87;  // <- VISUAL: normal lens, vertical field of view in degrees
+const LENS_LONG_DEG = 15;  // <- VISUAL: long lens
+const PREEMERGENCIA_DAYS = ["2026-06-13", "2026-06-14", "2026-06-15", "2026-06-17"];  // <- declared by the authorities
+const ALERTA_DAYS = ["2026-06-16"];  // <- declared by the authorities
+const PREEMERGENCIA_COLOR = "#9a3412";  // <- VISUAL
+const ALERTA_COLOR = "#d97706";  // <- VISUAL
+const EAST_STATION = "Las Condes";  // <- the clean-air comparison station in the info box
+
+// Smog sheets
+const SMOG_BBOX = [-70.98, -33.72, -70.40, -33.22];  // <- west, south, east, north: area covered by the smog sheets
+const SMOG_GRID = [192, 165];  // <- texture cells across, down (about 300 m each)
+const SHEET_BOTTOM_BELOW_BASE_M = 30;  // <- first sheet this far below the basin floor (hidden where the ground is higher)
+const SHEET_COUNT = 14;  // <- VISUAL: number of sheets from the bottom to the residual top
+const SHEET_ALPHA_MIXING = 0.07;  // <- VISUAL: opacity of each sheet inside the mixing layer (sheets stack up: keep low)
+const SHEET_ALPHA_RESIDUAL = 0.032;  // <- VISUAL: opacity of each sheet in the residual layer
+const PM_FULL = 130;  // <- PM2.5 (ug/m3) at which the smog colour is at full strength
+const PM_ZERO = 15;  // <- PM2.5 below which the smog is invisible
+const SMOG_STRENGTH_POWER = 2;  // <- VISUAL: how fast smog density fades below PM_FULL (1 = straight line; 2 = clean days look clean: 40 ug/m3 gives 5% instead of 22%). Used for sheets, puffs, sky and distance fog
+const IDW_POWER = 2;  // <- how station values spread between stations (inverse distance weighting)
+const EDGE_FADE = 0.12;  // <- fraction of the smog area that fades out at its edges
+const STATION_FADE_KM = [9, 20];  // <- VISUAL: smog sheets fade out between these distances from the nearest station (no hard rectangle)
+
+// Distance fog inside the smog (ground and buildings fade with the metres of smog between them and the camera)
+const FOG_ON = true;  // <- start with the fog on
+const FOG_BETA_PER_KM_AT_130 = 1.3;  // <- light extinction at 130 ug/m3 PM2.5 (visibility about 3 km; illustrative rule of thumb)
+const FOG_MAX = 0.92;  // <- VISUAL: the fog never hides a pixel more than this
+const SKY_CLEAN = ["#b9cbe0", "#e3e8ee", "#eef0f2"];  // <- VISUAL: sky top, middle, horizon on a clean day
+const SKY_SMOG_MAX = 0.75;  // <- VISUAL: how far the sky turns smog grey at the highest PM2.5 (0 to 1)
+const SMOG_COLORS = [[168, 170, 175], [128, 130, 136], [92, 94, 100], [62, 64, 70]];  // <- VISUAL: grey haze to dark grey smog (soot from traffic and wood burning)
+const SHEET_SPACING_POWER = 1.7;  // <- VISUAL: above 1 puts more sheets near the ground (thick bottom, soft ceiling)
+
+// Haze clouds: soft noise drifting with the wind, multiplied into each sheet
+const CLOUD_PX_PER_CELL = 4;  // <- VISUAL: noise pixels per smog cell; larger = smaller cloud lumps
+const CLOUD_CONTRAST_BOTTOM = 0.45;  // <- VISUAL: patchiness of the lowest sheet (0 = smooth, 1 = very patchy)
+const CLOUD_CONTRAST_TOP = 0.95;  // <- VISUAL: patchiness of the top sheet (wispy)
+const CLOUD_DRIFT = 0.35;  // <- VISUAL: noise pixels per second for each m/s of ERA5 wind (slow: smog under an inversion barely moves)
+const CLOUD_BOIL = 0.35;  // <- VISUAL: noise pixels per second the haze churns on its own
+const CLOUD_UPDATES_PER_SECOND = 15;  // <- how often the haze textures are redrawn
+
+// Buildings inside the smog
+const TINT_STRENGTH = 0.75;  // <- VISUAL: how strongly buildings inside thick smog take its colour
+const TINT_ON = false;  // <- start with the building tint off (the fog now does this job)
+
+// Haze puffs: large soft blobs drifting with the wind
+const PARTICLE_COUNT = 3000;  // <- VISUAL: number of puffs
+const PARTICLE_SPEED_FACTOR = 15;  // <- puff drift speed = ERA5 10 m wind x this (slow: smog under an inversion barely moves)
+const PUFF_SIZE_M = [150, 450];  // <- VISUAL: puff diameter range in metres
+const PUFF_MAX_PX = 260;  // <- VISUAL: puffs never larger than this on screen (close to the camera)
+const PUFF_ALPHA = 0.16;  // <- VISUAL: opacity of a puff in the thickest smog
+
+// Station markers
+const STATIONS_ON = true;  // <- start with the station markers on
+const PIN_HEIGHT_M = 160;  // <- VISUAL: height of the pin above the ground
+const PIN_DOT_PX = 7;  // <- VISUAL: size of the dot at the top of the pin
+const LABEL_SIZE_PX = 14;  // <- VISUAL
+
+// Episode chart above the time bar (PM2.5 and the lid, with a cursor at the shown hour)
+const CHART_ON = true;  // <- start with the chart shown
+const CHART_HEIGHT_PX = 128;  // <- VISUAL: height of the chart
+const CHART_PM_MAX = 140;  // <- PM2.5 axis top (ug/m3)
+const CHART_LID_MAX_M = 700;  // <- lid axis top (m above the ground)
+const CHART_THRESHOLDS = [[80, "alerta"], [110, "preemergencia"]];  // <- 24-hour PM2.5 levels drawn as dashed lines (MMA episode ranges)
+const CHART_WEST_COLOR = "#2f3136";  // <- VISUAL: line for the worst station (Cerro Navia)
+const CHART_EAST_COLOR = "#8f949c";  // <- VISUAL: line for the clean-air station (Las Condes)
+const CHART_MIXING_COLOR = "rgba(61, 90, 128, 0.55)";  // <- VISUAL: mixing layer fill
+const CHART_RESIDUAL_COLOR = "rgba(125, 128, 136, 0.28)";  // <- VISUAL: residual layer fill
+const CHART_NIGHT_COLOR = "rgba(27, 36, 51, 0.07)";  // <- VISUAL: night shading (sun below the horizon)
+
+// Light
+const AMBIENT_DAY = 1.15;  // <- VISUAL
+const AMBIENT_NIGHT = 0.55;  // <- VISUAL
+const SUN_INTENSITY = 2.2;  // <- VISUAL
+const SMOG_NIGHT_BRIGHTNESS = 0.35;  // <- VISUAL: smog brightness at night relative to day (the smog is unlit, so it is dimmed by hand)
+const SHADOWS_ON = false;  // <- start with cast shadows off: deck.gl also draws them on every smog sheet (dark curtains), and thick smog diffuses sunlight anyway
+const SHADOW_COLOR = [0.2, 0.23, 0.3, 0.55];  // <- VISUAL, 0 to 1 scale
+const TERRAIN_BRIGHTNESS = 0.7;  // <- VISUAL
+const BUILDING_COLOR = [240, 236, 228];  // <- VISUAL: warm white, so clean air looks clean and grey smog stands out
+const BUILDING_MATERIAL = { ambient: 0.42, diffuse: 0.6, shininess: 12, specularColor: [50, 50, 50] };  // <- VISUAL
+
+const TERRAIN_MESH_ERROR_M = 3;
+const BUILDINGS_URL = "data/buildings.json";
+const SMOG_URL = "data/smog.json";
+const ELEVATION_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+const TEXTURE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+const HILLSHADE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}";
+const HILLSHADE_STRENGTH = 0.75;  // <- VISUAL: relief shading on the grey basemap
+const BASEMAP = "satellite";  // <- "satellite" (real colours: green hills, dark roads, so the grey smog shows) or "grey"
+const SATELLITE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const SATELLITE_HILLSHADE = 0.35;  // <- VISUAL: extra relief shading on the satellite image
+const SATELLITE_SATURATION = 0.85;  // <- VISUAL: 1 = colours as photographed, lower = softer
+const SNOW_LINE_M = 1500;  // <- VISUAL: altitude where snow starts on the Andes (typical winter snow line near Santiago; illustrative, not measured for June 2026)
+const SNOW_SOFT_M = 500;  // <- VISUAL: altitude range over which the snow fades in (patchy lower down, full cover above)
+const SNOW_SHADING = 0.3;  // <- VISUAL: how much the relief shading darkens the snow (0 = flat white, 1 = strong)
+const SNOW_COLOR = [246, 248, 252];  // <- VISUAL
+
+// Gran Torre Costanera: OSM maps it as 14 pieces that all start at the ground; the page models its shape instead.
+const TOWER_CENTRE = [-70.60679, -33.41693];  // <- tower centre (from the OSM pieces)
+const TOWER_HEIGHT_M = 300;  // <- top of the crown
+const TOWER_ROOF_M = 262;  // <- where the open glass crown begins
+const TOWER_WIDTH_M = [46, 38];  // <- shaft width at the base and at the roof
+const TOWER_COLOR = [150, 172, 196];  // <- VISUAL: blue glass
+// ====================================================
+
+const $ = id => document.getElementById(id);
+const sheetBox = $("sheetBox");
+const tintBox = $("tintBox");
+const fogBox = $("fogBox");
+const stationBox = $("stationBox");
+const particleBox = $("particleBox");
+const shadowBox = $("shadowBox");
+const lensSel = $("lensSel");
+const playBtn = $("playBtn");
+const timeSlider = $("timeSlider");
+const speedSel = $("speedSel");
+const chartToggle = $("chartToggle");
+const chartCanvas = $("chartCanvas");
+sheetBox.checked = true;
+tintBox.checked = TINT_ON;
+fogBox.checked = FOG_ON;
+stationBox.checked = STATIONS_ON;
+particleBox.checked = true;
+shadowBox.checked = SHADOWS_ON;
+lensSel.value = START_LENS;
+speedSel.value = String(START_SPEED);
+chartToggle.checked = CHART_ON;
+
+let buildings = [];
+let smog = null;
+let hourIndex = 0;
+let hourFloat = 0;
+let playing = false;
+let field = null;
+let baseAlt = 500;
+let worstStation = 0;
+let eastStation = -1;
+
+// ---------- terrain texture: light basemap x hillshade ----------
+const defaultFetch = new deck.TerrainLayer({ id: "probe" }).props.fetch;
+
+async function loadImage(url, signal) {
+  const r = await fetch(url, { signal });
+  if (!r.ok) {
+    throw new Error("tile " + r.status);
+  }
+  return await createImageBitmap(await r.blob());
+}
+
+async function loadElevation(z, x, y, signal) {
+  const url = ELEVATION_URL.replace("{z}", z).replace("{x}", x).replace("{y}", y);
+  const img = await loadImage(url, signal);
+  const c = new OffscreenCanvas(img.width, img.height);
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  return { data: g.getImageData(0, 0, img.width, img.height).data, w: img.width, h: img.height };
+}
+
+// The terrain's texture tile: satellite (or light grey basemap) x hillshade, with snow above the snow line.
+async function blendedFetch(url, ctx) {
+  if (ctx.propName !== "texture") {
+    return defaultFetch(url, ctx);
+  }
+  const m = url.match(/tile\/(\d+)\/(\d+)\/(\d+)/);
+  const z = m[1];
+  const ty = m[2];
+  const tx = m[3];
+  const hillUrl = HILLSHADE_URL.replace("{z}", z).replace("{y}", ty).replace("{x}", tx);
+  const [base, hill, elev] = await Promise.all([loadImage(url, ctx.signal), loadImage(hillUrl, ctx.signal).catch(() => null), loadElevation(z, tx, ty, ctx.signal).catch(() => null)]);
+  const W = base.width;
+  const H = base.height;
+  const canvas = new OffscreenCanvas(W, H);
+  const g = canvas.getContext("2d", { willReadFrequently: true });
+  g.drawImage(base, 0, 0);
+  const strength = BASEMAP === "satellite" ? SATELLITE_HILLSHADE : HILLSHADE_STRENGTH;
+  let shade = null;
+  if (hill && strength > 0) {
+    const hc = new OffscreenCanvas(W, H);
+    const hg = hc.getContext("2d", { willReadFrequently: true });
+    hg.drawImage(hill, 0, 0, W, H);
+    shade = hg.getImageData(0, 0, W, H).data;
+  }
+  const img = g.getImageData(0, 0, W, H);
+  const p = img.data;
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const q = (j * W + i) * 4;
+      let r = p[q];
+      let gg = p[q + 1];
+      let b = p[q + 2];
+      if (BASEMAP === "satellite" && SATELLITE_SATURATION !== 1) {
+        const lum = 0.3 * r + 0.59 * gg + 0.11 * b;
+        r = lum + (r - lum) * SATELLITE_SATURATION;
+        gg = lum + (gg - lum) * SATELLITE_SATURATION;
+        b = lum + (b - lum) * SATELLITE_SATURATION;
+      }
+      let sh = 1;
+      if (shade) {
+        sh = 1 - strength + strength * shade[q] / 255;
+        r *= sh;
+        gg *= sh;
+        b *= sh;
+      }
+      if (elev) {
+        const ei = Math.min(elev.w - 1, Math.floor(i * elev.w / W));
+        const ej = Math.min(elev.h - 1, Math.floor(j * elev.h / H));
+        const e = (ej * elev.w + ei) * 4;
+        const hgt = elev.data[e] * 256 + elev.data[e + 1] + elev.data[e + 2] / 256 - 32768;
+        let f = (hgt - SNOW_LINE_M) / SNOW_SOFT_M;
+        if (f > 0) {
+          f = Math.min(1, f);
+          f = f * f * (3 - 2 * f);
+          const light = shade ? 1 - SNOW_SHADING + SNOW_SHADING * shade[q] / 255 : 1;
+          r = r + (SNOW_COLOR[0] * light - r) * f;
+          gg = gg + (SNOW_COLOR[1] * light - gg) * f;
+          b = b + (SNOW_COLOR[2] * light - b) * f;
+        }
+      }
+      p[q] = r;
+      p[q + 1] = gg;
+      p[q + 2] = b;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return canvas.transferToImageBitmap();
+}
+
+// ---------- sun ----------
+function solarElevationDeg(ms, lat, lon) {
+  const d = ms / 86400000 + 2440587.5 - 2451545.0;
+  const g = (357.529 + 0.98560028 * d) * Math.PI / 180;
+  const q = 280.459 + 0.98564736 * d;
+  const L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * Math.PI / 180;
+  const e = (23.439 - 0.00000036 * d) * Math.PI / 180;
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+  const dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+  const lst = (gmst + lon / 15) * 15 * Math.PI / 180;
+  const ha = lst - ra;
+  const la = lat * Math.PI / 180;
+  return Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha)) * 180 / Math.PI;
+}
+
+// Light level 0 (night) to 1 (day); the unlit smog sheets and puffs are dimmed by it so they darken with the scene.
+let lightLevel = 1;
+
+function makeLighting(ms) {
+  const elev = solarElevationDeg(ms, -33.45, -70.65);
+  const day = Math.max(0, Math.min(1, (elev + 2) / 10));
+  lightLevel = (AMBIENT_NIGHT + (AMBIENT_DAY - AMBIENT_NIGHT) * day) / AMBIENT_DAY;
+  document.body.classList.toggle("night", elev < -4);
+  const ambient = new deck.AmbientLight({ color: [255, 255, 255], intensity: AMBIENT_NIGHT + (AMBIENT_DAY - AMBIENT_NIGHT) * day });
+  const lights = { ambient };
+  if (elev > 0) {
+    lights.sun = new deck._SunLight({ timestamp: ms, color: [255, 246, 230], intensity: SUN_INTENSITY * Math.min(1, elev / 12), _shadow: shadowBox.checked && elev > 3 });
+  }
+  const effect = new deck.LightingEffect(lights);
+  effect.shadowColor = SHADOW_COLOR;
+  return effect;
+}
+
+// ---------- smog field ----------
+function smogColor(pm) {
+  const t = Math.max(0, Math.min(1, (pm - PM_ZERO) / (PM_FULL - PM_ZERO)));
+  const x = t * (SMOG_COLORS.length - 1);
+  const i = Math.min(SMOG_COLORS.length - 2, Math.floor(x));
+  const f = x - i;
+  const a = SMOG_COLORS[i];
+  const b = SMOG_COLORS[i + 1];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, Math.pow(t, SMOG_STRENGTH_POWER)];
+}
+
+// Density of the smog for the distance fog: same scale as the sheets, allowed a little above PM_FULL.
+function fogStrength(pm) {
+  const t = Math.max(0, (pm - PM_ZERO) / (PM_FULL - PM_ZERO));
+  return Math.pow(t, SMOG_STRENGTH_POWER);
+}
+
+function stationValues(h) {
+  return smog.pm25[h];
+}
+
+// Spread station values over the grid (inverse distance weighting, distances in km).
+function buildField(values) {
+  const [nx, ny] = SMOG_GRID;
+  const [w, s, e, n] = SMOG_BBOX;
+  const kx = 111.32 * Math.cos(33.45 * Math.PI / 180);
+  const out = new Float32Array(nx * ny);
+  const st = smog.stations;
+  for (let j = 0; j < ny; j++) {
+    const lat = n - (j + 0.5) / ny * (n - s);
+    for (let i = 0; i < nx; i++) {
+      const lon = w + (i + 0.5) / nx * (e - w);
+      let num = 0;
+      let den = 0;
+      for (let k = 0; k < st.length; k++) {
+        const v = values[k];
+        if (v === null) {
+          continue;
+        }
+        const dx = (lon - st[k].lon) * kx;
+        const dy = (lat - st[k].lat) * 111.32;
+        const d2 = dx * dx + dy * dy + 0.25;
+        const wgt = 1 / Math.pow(d2, IDW_POWER / 2);
+        num += wgt * v;
+        den += wgt;
+      }
+      out[j * nx + i] = den > 0 ? num / den : 0;
+    }
+  }
+  return out;
+}
+
+function fieldAt(lon, lat) {
+  const [nx, ny] = SMOG_GRID;
+  const [w, s, e, n] = SMOG_BBOX;
+  const i = Math.floor((lon - w) / (e - w) * nx);
+  const j = Math.floor((n - lat) / (n - s) * ny);
+  if (i < 0 || j < 0 || i >= nx || j >= ny) {
+    return 0;
+  }
+  return field[j * nx + i];
+}
+
+function edgeFade(i, j) {
+  const [nx, ny] = SMOG_GRID;
+  const fx = Math.min(i / nx, 1 - i / nx) / EDGE_FADE;
+  const fy = Math.min(j / ny, 1 - j / ny) / EDGE_FADE;
+  return Math.max(0, Math.min(1, Math.min(fx, fy)));
+}
+
+// ---------- haze puffs ----------
+const pPos = new Float32Array(PARTICLE_COUNT * 3);
+const pCol = new Uint8Array(PARTICLE_COUNT * 4);
+const pSize = new Float32Array(PARTICLE_COUNT);
+for (let k = 0; k < PARTICLE_COUNT; k++) {
+  pSize[k] = PUFF_SIZE_M[0] + Math.random() * (PUFF_SIZE_M[1] - PUFF_SIZE_M[0]);
+}
+let lastFrame = performance.now();
+
+function makePuffAtlas() {
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext("2d");
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.45, "rgba(255,255,255,0.55)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return c;
+}
+const PUFF_ATLAS = makePuffAtlas();
+const PUFF_MAPPING = { puff: { x: 0, y: 0, width: 64, height: 64, mask: true } };
+
+// Rough ground height per smog cell, from the ground heights under the buildings (-1 = no buildings there).
+let groundGrid = null;
+
+function buildGroundGrid() {
+  const [nx, ny] = SMOG_GRID;
+  const [w, s, e, n] = SMOG_BBOX;
+  groundGrid = new Float32Array(nx * ny).fill(-1);
+  for (const b of buildings) {
+    const i = Math.floor((b.cx - w) / (e - w) * nx);
+    const j = Math.floor((n - b.cy) / (n - s) * ny);
+    if (i < 0 || j < 0 || i >= nx || j >= ny) {
+      continue;
+    }
+    const g = b.z0 - b.mh;
+    const p = j * nx + i;
+    if (groundGrid[p] < 0 || g < groundGrid[p]) {
+      groundGrid[p] = g;
+    }
+  }
+}
+
+function groundAt(lon, lat) {
+  const [nx, ny] = SMOG_GRID;
+  const [w, s, e, n] = SMOG_BBOX;
+  const i = Math.floor((lon - w) / (e - w) * nx);
+  const j = Math.floor((n - lat) / (n - s) * ny);
+  if (i < 0 || j < 0 || i >= nx || j >= ny) {
+    return -1;
+  }
+  return groundGrid[j * nx + i];
+}
+
+// Puffs live only over cells with buildings (where the ground height is known), mostly in the lower half of the smog.
+function respawn(k, top) {
+  const [w, s, e, n] = SMOG_BBOX;
+  const topAbs = baseAlt + top;
+  for (let tries = 0; tries < 20; tries++) {
+    const lon = w + Math.random() * (e - w);
+    const lat = s + Math.random() * (n - s);
+    const g = groundAt(lon, lat);
+    if (g < 0 || g + 10 >= topAbs) {
+      continue;
+    }
+    const r = Math.random();
+    pPos[k * 3] = lon;
+    pPos[k * 3 + 1] = lat;
+    pPos[k * 3 + 2] = g + 5 + r * r * (topAbs - g - 5);
+    return;
+  }
+  pPos[k * 3 + 2] = -1000;
+}
+
+function stepParticles(dt) {
+  const [w, s, e, n] = SMOG_BBOX;
+  const top = smog.residual[hourIndex];
+  const u = smog.u[hourIndex] * PARTICLE_SPEED_FACTOR;
+  const v = smog.v[hourIndex] * PARTICLE_SPEED_FACTOR;
+  const dLon = u * dt / (111320 * Math.cos(33.45 * Math.PI / 180));
+  const dLat = v * dt / 111320;
+  for (let k = 0; k < PARTICLE_COUNT; k++) {
+    const lon = pPos[k * 3] + dLon * (0.7 + 0.6 * ((k * 7919) % 100) / 100);
+    const lat = pPos[k * 3 + 1] + dLat * (0.7 + 0.6 * ((k * 104729) % 100) / 100);
+    const g = groundAt(lon, lat);
+    if (lon < w || lon > e || lat < s || lat > n || g < 0 || pPos[k * 3 + 2] > baseAlt + top || pPos[k * 3 + 2] < g) {
+      respawn(k, top);
+    } else {
+      pPos[k * 3] = lon;
+      pPos[k * 3 + 1] = lat;
+    }
+    const c = smogColor(fieldAt(pPos[k * 3], pPos[k * 3 + 1]));
+    const lv = smogLight();
+    pCol[k * 4] = c[0] * lv;
+    pCol[k * 4 + 1] = c[1] * lv;
+    pCol[k * 4 + 2] = c[2] * lv;
+    pCol[k * 4 + 3] = Math.round(255 * PUFF_ALPHA * c[3]);
+  }
+}
+
+// ---------- haze clouds ----------
+// Tileable fractal value noise, values 0 to 1.
+function mulberry32(a) {
+  return function() {
+    a |= 0;
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function makeNoise(size, baseCells, octaves, seed) {
+  const rand = mulberry32(seed);
+  const out = new Float32Array(size * size);
+  let amp = 1;
+  for (let o = 0; o < octaves; o++) {
+    const cells = baseCells * Math.pow(2, o);
+    const grid = new Float32Array(cells * cells);
+    for (let q = 0; q < grid.length; q++) {
+      grid[q] = rand();
+    }
+    for (let y = 0; y < size; y++) {
+      const gy = y / size * cells;
+      const y0 = Math.floor(gy);
+      const fy = gy - y0;
+      const sy = fy * fy * (3 - 2 * fy);
+      const y1 = (y0 + 1) % cells;
+      for (let x = 0; x < size; x++) {
+        const gx = x / size * cells;
+        const x0 = Math.floor(gx);
+        const fx = gx - x0;
+        const sx = fx * fx * (3 - 2 * fx);
+        const x1 = (x0 + 1) % cells;
+        const a = grid[y0 * cells + x0] + (grid[y0 * cells + x1] - grid[y0 * cells + x0]) * sx;
+        const b = grid[y1 * cells + x0] + (grid[y1 * cells + x1] - grid[y1 * cells + x0]) * sx;
+        out[y * size + x] += amp * (a + (b - a) * sy);
+      }
+    }
+    amp *= 0.5;
+  }
+  let mn = Infinity;
+  let mx = -Infinity;
+  for (const v of out) {
+    mn = Math.min(mn, v);
+    mx = Math.max(mx, v);
+  }
+  for (let q = 0; q < out.length; q++) {
+    out[q] = (out[q] - mn) / (mx - mn);
+  }
+  return out;
+}
+
+const NOISE_SIZE = 256;
+const noiseA = makeNoise(NOISE_SIZE, 6, 4, 11);
+const noiseB = makeNoise(NOISE_SIZE, 9, 3, 29);
+
+function noiseAt(arr, x, y) {
+  const m = NOISE_SIZE;
+  const xi = ((Math.floor(x) % m) + m) % m;
+  const yi = ((Math.floor(y) % m) + m) % m;
+  return arr[yi * m + xi];
+}
+
+let fieldRGBA = null;
+let sheetTextures = [];
+let sheetBuffers = [];
+let cloudX = 0;
+let cloudY = 0;
+let cloudBoil = 0;
+let lastCloudDraw = 0;
+
+// 1 near the stations, fading to 0 far from all of them.
+let stationFade = null;
+
+function buildStationFade() {
+  const [nx, ny] = SMOG_GRID;
+  const [w, s, e, n] = SMOG_BBOX;
+  const kx = 111.32 * Math.cos(33.45 * Math.PI / 180);
+  stationFade = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    const lat = n - (j + 0.5) / ny * (n - s);
+    for (let i = 0; i < nx; i++) {
+      const lon = w + (i + 0.5) / nx * (e - w);
+      let dmin = Infinity;
+      for (const st of smog.stations) {
+        const dx = (lon - st.lon) * kx;
+        const dy = (lat - st.lat) * 111.32;
+        dmin = Math.min(dmin, Math.hypot(dx, dy));
+      }
+      const t = (STATION_FADE_KM[1] - dmin) / (STATION_FADE_KM[1] - STATION_FADE_KM[0]);
+      const c = Math.max(0, Math.min(1, t));
+      stationFade[j * nx + i] = c * c * (3 - 2 * c);
+    }
+  }
+}
+
+function cacheFieldRGBA() {
+  const [nx, ny] = SMOG_GRID;
+  fieldRGBA = new Float32Array(nx * ny * 4);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const c = smogColor(field[j * nx + i]);
+      const p = (j * nx + i) * 4;
+      fieldRGBA[p] = c[0];
+      fieldRGBA[p + 1] = c[1];
+      fieldRGBA[p + 2] = c[2];
+      fieldRGBA[p + 3] = c[3] * edgeFade(i, j) * stationFade[j * nx + i];
+    }
+  }
+}
+
+function ensureSheetTextures() {
+  if (sheetTextures.length === SHEET_COUNT || !deckgl.device) {
+    return sheetTextures.length === SHEET_COUNT;
+  }
+  const [nx, ny] = SMOG_GRID;
+  for (let k = 0; k < SHEET_COUNT; k++) {
+    sheetTextures.push(deckgl.device.createTexture({ width: nx, height: ny, format: "rgba8unorm", sampler: { minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" } }));
+    sheetBuffers.push(new Uint8Array(nx * ny * 4));
+  }
+  return true;
+}
+
+function drawSheets() {
+  if (!fieldRGBA || !ensureSheetTextures()) {
+    return;
+  }
+  const [nx, ny] = SMOG_GRID;
+  for (let k = 0; k < SHEET_COUNT; k++) {
+    const f = k / Math.max(1, SHEET_COUNT - 1);
+    const contrast = CLOUD_CONTRAST_BOTTOM + (CLOUD_CONTRAST_TOP - CLOUD_CONTRAST_BOTTOM) * f;
+    const ox = cloudX + k * 37.3;
+    const oy = cloudY + k * 21.7;
+    const buf = sheetBuffers[k];
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const p = (j * nx + i) * 4;
+        const fa = fieldRGBA[p + 3];
+        if (fa <= 0.001) {
+          buf[p + 3] = 0;
+          continue;
+        }
+        const x = i * CLOUD_PX_PER_CELL;
+        const y = j * CLOUD_PX_PER_CELL;
+        const nA = noiseAt(noiseA, x + ox, y + oy);
+        const nB = noiseAt(noiseB, x * 0.61 - cloudBoil + k * 13.1, y * 0.61 + cloudBoil * 0.7);
+        let t = (0.65 * nA + 0.35 * nB - 0.3) / 0.4;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        t = t * t * (3 - 2 * t);
+        const shaped = (1 - contrast) + contrast * 2 * t;
+        buf[p] = fieldRGBA[p];
+        buf[p + 1] = fieldRGBA[p + 1];
+        buf[p + 2] = fieldRGBA[p + 2];
+        buf[p + 3] = Math.min(255, Math.round(255 * fa * shaped));
+      }
+    }
+    sheetTextures[k].writeData(buf, { width: nx, height: ny });
+  }
+}
+
+// ---------- Gran Torre Costanera ----------
+// A rounded-square shaft tapering from TOWER_WIDTH_M[0] to [1], then an open crown (a ring) that flares slightly outwards.
+let towerSlices = [];
+
+function roundedSquare(cx, cy, half, radius, segs) {
+  const kx = 1 / (111320 * Math.cos(cy * Math.PI / 180));
+  const ky = 1 / 111320;
+  const pts = [];
+  const corners = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+  for (let c = 0; c < 4; c++) {
+    const [sx, sy] = corners[c];
+    const ox = sx * (half - radius);
+    const oy = sy * (half - radius);
+    const a0 = [0, 0.5, 1, 1.5][c] * Math.PI;
+    for (let k = 0; k <= segs; k++) {
+      const a = a0 + k / segs * Math.PI / 2;
+      pts.push([cx + (ox + radius * Math.cos(a)) * kx, cy + (oy + radius * Math.sin(a)) * ky]);
+    }
+  }
+  return pts;
+}
+
+function buildTower(ground) {
+  const [cx, cy] = TOWER_CENTRE;
+  const slices = [];
+  const n = 30;
+  for (let k = 0; k < n; k++) {
+    const z0 = TOWER_ROOF_M * k / n;
+    const t = (k + 0.5) / n;
+    const w = TOWER_WIDTH_M[0] + (TOWER_WIDTH_M[1] - TOWER_WIDTH_M[0]) * Math.pow(t, 1.6);
+    const ring = roundedSquare(cx, cy, w / 2, w * 0.18, 4).map(p => [p[0], p[1], ground + z0]);
+    slices.push({ polygon: ring, h: TOWER_ROOF_M / n });
+  }
+  const crownH = TOWER_HEIGHT_M - TOWER_ROOF_M;
+  const m = 8;
+  for (let k = 0; k < m; k++) {
+    const z0 = TOWER_ROOF_M + crownH * k / m;
+    const w = TOWER_WIDTH_M[1] * (1 + 0.06 * (k + 0.5) / m);
+    const outer = roundedSquare(cx, cy, w / 2, w * 0.18, 4).map(p => [p[0], p[1], ground + z0]);
+    const inner = roundedSquare(cx, cy, w / 2 - 2.5, (w / 2 - 2.5) * 0.36, 4).map(p => [p[0], p[1], ground + z0]).reverse();
+    slices.push({ polygon: [outer, inner], h: crownH / m });
+  }
+  return slices;
+}
+
+// ---------- distance fog inside the smog ----------
+// Each ground or building pixel fades towards the smog colour by the metres of smog between it and the camera.
+// Smog fills everything below the smog top (basin floor + residual layer); beta follows PM2.5 near the view centre.
+const SMOG_FOG = { color: [0.6, 0.55, 0.47, 0.0], params: [1000, 0, 0, 0] };
+
+const smogFogModule = {
+  name: "smogfog",
+  fs: `
+layout(std140) uniform smogfogUniforms {
+  vec4 color;
+  vec4 params;
+} smogfog;
+`,
+  uniformTypes: { color: "vec4<f32>", params: "vec4<f32>" }
+};
+
+const SMOG_FOG_INJECT = {
+  "vs:#decl": `
+out vec3 smogfog_delta;
+out float smogfog_alt;
+`,
+  "vs:DECKGL_FILTER_GL_POSITION": `
+  smogfog_delta = (geometry.position.xyz - project.cameraPosition) / project.commonUnitsPerMeter;
+  smogfog_alt = geometry.position.z / project.commonUnitsPerMeter.z;
+`,
+  "fs:#decl": `
+in vec3 smogfog_delta;
+in float smogfog_alt;
+`,
+  "fs:DECKGL_FILTER_COLOR": `
+  {
+    float top = smogfog.params.x;
+    float camAlt = smogfog_alt - smogfog_delta.z;
+    float lo = min(camAlt, smogfog_alt);
+    float hi = max(camAlt, smogfog_alt);
+    float inside = 0.0;
+    if (hi <= top) {
+      inside = 1.0;
+    } else if (lo < top) {
+      inside = (top - lo) / max(hi - lo, 0.001);
+    }
+    float metres = length(smogfog_delta) * inside;
+    float fog = (1.0 - exp(-smogfog.params.y * metres)) * smogfog.color.a;
+    color.rgb = mix(color.rgb, smogfog.color.rgb, fog);
+  }
+`
+};
+
+class SmogFogExtension extends deck.LayerExtension {
+  getShaders() {
+    return { modules: [smogFogModule], inject: SMOG_FOG_INJECT };
+  }
+  draw() {
+    this.setShaderModuleProps({ smogfog: { color: SMOG_FOG.color, params: SMOG_FOG.params } });
+  }
+}
+SmogFogExtension.extensionName = "SmogFogExtension";
+const SMOG_FOG_EXTENSION = new SmogFogExtension();
+
+function updateFog() {
+  if (!smog || !field) {
+    return;
+  }
+  const vp = deckgl.getViewports()[0];
+  const lon = vp ? vp.longitude : START_VIEW.longitude;
+  const lat = vp ? vp.latitude : START_VIEW.latitude;
+  let pm = fieldAt(lon, lat);
+  if (!pm) {
+    pm = 60;
+  }
+  const c = smogColor(Math.max(pm, PM_ZERO + 25));
+  const lv = smogLight();
+  const on = fogBox.checked ? 1 : 0;
+  SMOG_FOG.color = [c[0] / 255 * lv, c[1] / 255 * lv, c[2] / 255 * lv, FOG_MAX * on];
+  SMOG_FOG.params = [baseAlt + smog.residual[hourIndex], FOG_BETA_PER_KM_AT_130 * fogStrength(pm) / 1000, 0, 0];
+  updateSky(pm);
+}
+
+// The sky greys towards the horizon in proportion to PM2.5 (by day; night uses the night sky).
+let lastSky = "";
+
+function mixHex(hex, rgb, t) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return "rgb(" + Math.round(r + (rgb[0] - r) * t) + "," + Math.round(g + (rgb[1] - g) * t) + "," + Math.round(b + (rgb[2] - b) * t) + ")";
+}
+
+function updateSky(pm) {
+  const c = smogColor(pm);
+  const t = SKY_SMOG_MAX * c[3];
+  const sky = "linear-gradient(" + mixHex(SKY_CLEAN[0], c, t * 0.35) + " 0%, " + mixHex(SKY_CLEAN[1], c, t * 0.8) + " 55%, " + mixHex(SKY_CLEAN[2], c, t) + " 100%)";
+  if (sky !== lastSky) {
+    document.body.style.background = sky;
+    lastSky = sky;
+  }
+}
+
+// ---------- layers ----------
+function makeView() {
+  const fovy = lensSel.value === "long" ? LENS_LONG_DEG : LENS_NORMAL_DEG;
+  return new deck.MapView({ id: "map", controller: true, fovy: fovy });
+}
+
+function buildingTint(d) {
+  if (!tintBox.checked || !field) {
+    return BUILDING_COLOR;
+  }
+  const top = baseAlt + smog.residual[hourIndex];
+  const mixTop = baseAlt + smog.blh[hourIndex];
+  const bottom = d.z0;
+  const roof = d.z0 + d.h - d.mh;
+  if (bottom >= top) {
+    return BUILDING_COLOR;
+  }
+  const inside = Math.min(1, (top - bottom) / Math.max(1, roof - bottom));
+  const dense = bottom < mixTop ? 1 : 0.55;
+  const c = smogColor(fieldAt(d.cx, d.cy));
+  const f = TINT_STRENGTH * c[3] * inside * dense;
+  return [BUILDING_COLOR[0] + (c[0] - BUILDING_COLOR[0]) * f, BUILDING_COLOR[1] + (c[1] - BUILDING_COLOR[1]) * f, BUILDING_COLOR[2] + (c[2] - BUILDING_COLOR[2]) * f];
+}
+
+function smogLight() {
+  return SMOG_NIGHT_BRIGHTNESS + (1 - SMOG_NIGHT_BRIGHTNESS) * (lightLevel - AMBIENT_NIGHT / AMBIENT_DAY) / (1 - AMBIENT_NIGHT / AMBIENT_DAY);
+}
+
+function sheetLayers() {
+  if (!sheetBox.checked || sheetTextures.length !== SHEET_COUNT) {
+    return [];
+  }
+  const [w, s, e, n] = SMOG_BBOX;
+  const top = smog.residual[hourIndex];
+  const mix = smog.blh[hourIndex];
+  const bottom = -SHEET_BOTTOM_BELOW_BASE_M;
+  const layers = [];
+  for (let k = 0; k < SHEET_COUNT; k++) {
+    const f = Math.pow((k + 0.5) / SHEET_COUNT, SHEET_SPACING_POWER);
+    const hRel = bottom + f * (top - bottom);
+    const z = baseAlt + hRel;
+    const inMix = hRel <= mix;
+    const fadeTop = Math.min(1, (top - hRel) / (0.25 * (top - bottom)));
+    const alpha = (inMix ? SHEET_ALPHA_MIXING : SHEET_ALPHA_RESIDUAL) * fadeTop;
+    layers.push(new deck.BitmapLayer({
+      id: "sheet-" + k,
+      image: sheetTextures[k],
+      bounds: [[w, s, z], [w, n, z], [e, n, z], [e, s, z]],
+      opacity: alpha,
+      tintColor: [255 * smogLight(), 255 * smogLight(), 255 * smogLight()],
+      shadowEnabled: false,
+      pickable: false,
+      parameters: { depthWriteEnabled: false }
+    }));
+  }
+  return layers;
+}
+
+const ELEVATION_DECODER = { rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768 };
+const TERRAIN_MATERIAL = { ambient: TERRAIN_BRIGHTNESS, diffuse: 0.0, shininess: 1, specularColor: [0, 0, 0] };
+let terrainLayer = null;
+let puffTexture = null;
+
+// The terrain layer is created once and reused, so animation frames never make it reload its tiles.
+function getTerrain() {
+  if (!terrainLayer) {
+    terrainLayer = new deck.TerrainLayer({
+      id: "terrain",
+      minZoom: 0,
+      maxZoom: 15,
+      elevationDecoder: ELEVATION_DECODER,
+      elevationData: ELEVATION_URL,
+      texture: BASEMAP === "satellite" ? SATELLITE_URL : TEXTURE_URL,
+      meshMaxError: TERRAIN_MESH_ERROR_M,
+      material: TERRAIN_MATERIAL,
+      fetch: blendedFetch,
+      shadowEnabled: false,
+      extensions: [SMOG_FOG_EXTENSION]
+    });
+  }
+  return terrainLayer;
+}
+
+// The puff image becomes a GPU texture once (a canvas would be converted again every frame).
+function getPuffTexture() {
+  if (!puffTexture && deckgl.device) {
+    puffTexture = deckgl.device.createTexture({ data: PUFF_ATLAS, width: 64, height: 64, format: "rgba8unorm", sampler: { minFilter: "linear", magFilter: "linear" } });
+  }
+  return puffTexture;
+}
+
+// ---------- station markers ----------
+let stationData = [];
+
+// Ground height at each station, read from the same Terrarium elevation tiles as the terrain (zoom 13).
+async function stationGround(lon, lat) {
+  const z = 13;
+  const n = Math.pow(2, z);
+  const fx = (lon + 180) / 360 * n;
+  const fy = (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+  const x = Math.floor(fx);
+  const y = Math.floor(fy);
+  const e = await loadElevation(String(z), String(x), String(y));
+  const i = Math.min(e.w - 1, Math.floor((fx - x) * e.w));
+  const j = Math.min(e.h - 1, Math.floor((fy - y) * e.h));
+  const q = (j * e.w + i) * 4;
+  return e.data[q] * 256 + e.data[q + 1] + e.data[q + 2] / 256 - 32768;
+}
+
+async function buildStationData() {
+  const rows = [];
+  for (let k = 0; k < smog.stations.length; k++) {
+    const st = smog.stations[k];
+    let g = baseAlt + 30;
+    try {
+      g = await stationGround(st.lon, st.lat);
+    } catch (err) {
+      const gb = groundAt(st.lon, st.lat);
+      if (gb > 0) {
+        g = gb;
+      }
+    }
+    rows.push({ k: k, name: st.name, lon: st.lon, lat: st.lat, ground: g });
+  }
+  stationData = rows;
+  render();
+}
+
+function stationValue(d) {
+  const v = smog.pm25[hourIndex][d.k];
+  return v === null ? null : v;
+}
+
+function stationLayers() {
+  if (!stationBox.checked || stationData.length === 0) {
+    return [];
+  }
+  const over = { depthCompare: "always", depthWriteEnabled: false };
+  return [
+    new deck.LineLayer({
+      id: "station-pins",
+      data: stationData,
+      getSourcePosition: d => [d.lon, d.lat, d.ground],
+      getTargetPosition: d => [d.lon, d.lat, d.ground + PIN_HEIGHT_M],
+      getColor: [40, 44, 52, 220],
+      getWidth: 1.5,
+      widthUnits: "pixels",
+      shadowEnabled: false
+    }),
+    new deck.ScatterplotLayer({
+      id: "station-dots",
+      data: stationData,
+      getPosition: d => [d.lon, d.lat, d.ground + PIN_HEIGHT_M],
+      getFillColor: d => {
+        const v = stationValue(d);
+        const c = smogColor(v === null ? 0 : Math.max(v, PM_ZERO + 1));
+        return [c[0], c[1], c[2], 255];
+      },
+      getLineColor: [255, 255, 255, 255],
+      stroked: true,
+      lineWidthUnits: "pixels",
+      getLineWidth: 1.5,
+      radiusUnits: "pixels",
+      getRadius: PIN_DOT_PX,
+      billboard: true,
+      pickable: true,
+      shadowEnabled: false,
+      parameters: over,
+      updateTriggers: { getFillColor: [hourIndex] }
+    }),
+    new deck.TextLayer({
+      id: "station-labels",
+      data: stationData,
+      getPosition: d => [d.lon, d.lat, d.ground + PIN_HEIGHT_M],
+      getText: d => {
+        const v = stationValue(d);
+        return d.name + "  " + (v === null ? "n/a" : Math.round(v));
+      },
+      getSize: LABEL_SIZE_PX,
+      getColor: [15, 17, 22, 255],
+      getPixelOffset: [PIN_DOT_PX + 5, 0],
+      getTextAnchor: "start",
+      getAlignmentBaseline: "center",
+      characterSet: "auto",
+      fontFamily: "Segoe UI, Helvetica, Arial, sans-serif",
+      fontWeight: 600,
+      fontSettings: { sdf: true },
+      outlineWidth: 1.6,
+      outlineColor: [255, 255, 255, 230],
+      billboard: true,
+      shadowEnabled: false,
+      parameters: over,
+      updateTriggers: { getText: [hourIndex] }
+    })
+  ];
+}
+
+function makeLayers() {
+  const terrain = getTerrain();
+  const blds = new deck.SolidPolygonLayer({
+    id: "buildings",
+    data: buildings,
+    extruded: true,
+    getPolygon: d => d.polygon,
+    getElevation: d => d.h - d.mh,
+    getFillColor: buildingTint,
+    material: BUILDING_MATERIAL,
+    extensions: [SMOG_FOG_EXTENSION],
+    updateTriggers: { getFillColor: [hourIndex, tintBox.checked] }
+  });
+  const tower = new deck.SolidPolygonLayer({
+    id: "gran-torre",
+    data: towerSlices,
+    extruded: true,
+    getPolygon: d => d.polygon,
+    getElevation: d => d.h,
+    getFillColor: TOWER_COLOR,
+    material: { ambient: 0.45, diffuse: 0.55, shininess: 60, specularColor: [200, 210, 225] },
+    extensions: [SMOG_FOG_EXTENSION]
+  });
+  const layers = [terrain, blds, tower];
+  if (particleBox.checked && smog && getPuffTexture()) {
+    layers.push(new deck.IconLayer({
+      id: "particles",
+      data: { length: PARTICLE_COUNT, attributes: { getPosition: { value: pPos.slice(), size: 3 }, getColor: { value: pCol.slice(), size: 4, normalized: true }, getSize: { value: pSize, size: 1 } } },
+      iconAtlas: getPuffTexture(),
+      iconMapping: PUFF_MAPPING,
+      getIcon: () => "puff",
+      sizeUnits: "meters",
+      sizeMaxPixels: PUFF_MAX_PX,
+      billboard: true,
+      shadowEnabled: false,
+      pickable: false,
+      parameters: { depthWriteEnabled: false }
+    }));
+  }
+  return layers.concat(sheetLayers()).concat(stationLayers());
+}
+
+// Camera readout: lets the viewer copy the current view (paste it into START_VIEW).
+function showView(vs) {
+  $("viewInfo").textContent = "view: " + vs.longitude.toFixed(4) + ", " + vs.latitude.toFixed(4) + ", zoom " + vs.zoom.toFixed(2) + ", pitch " + vs.pitch.toFixed(0) + ", bearing " + vs.bearing.toFixed(0) + ", lens " + lensSel.value;
+}
+
+const deckgl = new deck.Deck({
+  parent: $("map"),
+  views: makeView(),
+  initialViewState: START_VIEW,
+  getTooltip: ({ object, layer }) => {
+    if (!object || !layer || layer.id !== "station-dots") {
+      return null;
+    }
+    const v = stationValue(object);
+    return object.name + " monitoring station (SINCA)\nPM2.5, 24-hour average: " + (v === null ? "no data" : v.toFixed(0) + " \u00b5g/m\u00b3");
+  },
+  onViewStateChange: ({ viewState }) => {
+    showView(viewState);
+    return viewState;
+  },
+  layers: [],
+  effects: []
+});
+
+// ---------- info box ----------
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function updateInfo() {
+  const iso = smog.times[hourIndex];
+  const day = iso.slice(0, 10);
+  const dt = new Date(iso);
+  const local = new Date(dt.getTime() + parseInt(iso.slice(19, 22), 10) * 3600000);
+  $("when").textContent = WEEKDAYS[local.getUTCDay()] + " " + local.getUTCDate() + " " + MONTHS[local.getUTCMonth()] + ", " + iso.slice(11, 16);
+  const lvl = $("level");
+  if (PREEMERGENCIA_DAYS.includes(day)) {
+    lvl.textContent = "Preemergencia declared";
+    lvl.style.background = PREEMERGENCIA_COLOR;
+  } else if (ALERTA_DAYS.includes(day)) {
+    lvl.textContent = "Alerta declared";
+    lvl.style.background = ALERTA_COLOR;
+  } else {
+    lvl.textContent = "No episode declared";
+    lvl.style.background = "#64748b";
+  }
+  const vals = stationValues(hourIndex);
+  $("worstName").textContent = smog.stations[worstStation].name;
+  $("worstVal").textContent = vals[worstStation] === null ? "n/a" : vals[worstStation].toFixed(0) + " µg/m³";
+  $("eastVal").textContent = eastStation < 0 || vals[eastStation] === null ? "n/a" : vals[eastStation].toFixed(0) + " µg/m³";
+  $("blhVal").textContent = Math.round(smog.blh[hourIndex]) + " m";
+  $("resVal").textContent = Math.round(smog.residual[hourIndex]) + " m";
+  const speed = Math.hypot(smog.u[hourIndex], smog.v[hourIndex]) * 3.6;
+  const dir = (Math.atan2(-smog.u[hourIndex], -smog.v[hourIndex]) * 180 / Math.PI + 360) % 360;
+  const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  $("windVal").textContent = speed.toFixed(0) + " km/h from " + names[Math.round(dir / 45) % 8];
+  $("tempVal").textContent = smog.t2m[hourIndex].toFixed(1) + " °C";
+}
+
+function drawLegend() {
+  const stops = [];
+  for (let k = 0; k <= 10; k++) {
+    const pm = PM_ZERO + (PM_FULL - PM_ZERO) * k / 10;
+    const c = smogColor(pm);
+    stops.push("rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + (0.15 + 0.85 * c[3]).toFixed(2) + ") " + (k * 10) + "%");
+  }
+  $("legendBar").style.background = "linear-gradient(90deg, " + stops.join(", ") + ")";
+  $("legendTicks").innerHTML = "<span>" + PM_ZERO + "</span><span>" + Math.round((PM_ZERO + PM_FULL) / 2) + "</span><span>" + PM_FULL + "+</span>";
+}
+
+// ---------- episode chart ----------
+// Layout in CSS pixels: a strip of day names and declared levels, PM2.5 lines, then the lid.
+const CH = { left: 44, right: 8, dayTop: 0, dayH: 15, pmTop: 18, gap: 8 };
+let chartBase = null;
+let chartW = 0;
+let chartScale = 1;
+let chartLastX = -1;
+
+function chartX(i) {
+  return CH.left + (chartW - CH.left - CH.right) * i / (smog.times.length - 1);
+}
+
+function chartLayout() {
+  const pmH = Math.round((CHART_HEIGHT_PX - CH.pmTop - CH.gap) * 0.55);
+  const lidTop = CH.pmTop + pmH + CH.gap;
+  return { pmH: pmH, lidTop: lidTop, lidH: CHART_HEIGHT_PX - lidTop - 2 };
+}
+
+function buildChart() {
+  const box = $("chartBox");
+  box.style.display = chartToggle.checked ? "block" : "none";
+  if (!chartToggle.checked || !smog) {
+    return;
+  }
+  chartW = chartCanvas.clientWidth;
+  chartScale = window.devicePixelRatio || 1;
+  chartCanvas.style.height = CHART_HEIGHT_PX + "px";
+  chartCanvas.width = Math.round(chartW * chartScale);
+  chartCanvas.height = Math.round(CHART_HEIGHT_PX * chartScale);
+  chartBase = document.createElement("canvas");
+  chartBase.width = chartCanvas.width;
+  chartBase.height = chartCanvas.height;
+  const c = chartBase.getContext("2d");
+  c.scale(chartScale, chartScale);
+  const L = chartLayout();
+  const n = smog.times.length;
+  const step = chartX(1) - chartX(0);
+  const pmY = v => CH.pmTop + L.pmH * (1 - Math.min(v, CHART_PM_MAX) / CHART_PM_MAX);
+  const lidY = v => L.lidTop + L.lidH * (1 - Math.min(v, CHART_LID_MAX_M) / CHART_LID_MAX_M);
+  c.font = "10.5px Segoe UI, Helvetica, Arial, sans-serif";
+  c.textBaseline = "middle";
+  // Night shading over both panels
+  c.fillStyle = CHART_NIGHT_COLOR;
+  for (let i = 0; i < n; i++) {
+    const ms = new Date(smog.times[i]).getTime();
+    if (solarElevationDeg(ms, -33.45, -70.65) < 0) {
+      c.fillRect(chartX(i) - step / 2, CH.pmTop, step + 0.5, CHART_HEIGHT_PX - CH.pmTop);
+    }
+  }
+  // Day strip: declared level as a coloured band, day name at noon, a tick at midnight
+  for (let i = 0; i < n; i++) {
+    const iso = smog.times[i];
+    const day = iso.slice(0, 10);
+    const hh = iso.slice(11, 13);
+    let col = null;
+    if (PREEMERGENCIA_DAYS.includes(day)) {
+      col = PREEMERGENCIA_COLOR;
+    } else if (ALERTA_DAYS.includes(day)) {
+      col = ALERTA_COLOR;
+    }
+    if (col) {
+      c.fillStyle = col;
+      c.fillRect(chartX(i) - step / 2, CH.dayTop + CH.dayH - 4, step + 0.5, 4);
+    }
+    if (hh === "00") {
+      c.fillStyle = "rgba(0, 0, 0, 0.25)";
+      c.fillRect(Math.round(chartX(i)) - 0.5, CH.dayTop + 2, 1, CHART_HEIGHT_PX - 2);
+    }
+    if (hh === "12") {
+      const local = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
+      c.fillStyle = "#333";
+      c.textAlign = "center";
+      c.fillText(WEEKDAYS[local.getUTCDay()] + " " + local.getUTCDate(), chartX(i), CH.dayTop + 6);
+    }
+  }
+  // PM2.5 panel: thresholds, then the two stations
+  c.textAlign = "right";
+  c.setLineDash([3, 3]);
+  c.lineWidth = 1;
+  for (const [v, name] of CHART_THRESHOLDS) {
+    const y = Math.round(pmY(v)) + 0.5;
+    c.strokeStyle = name === "alerta" ? ALERTA_COLOR : PREEMERGENCIA_COLOR;
+    c.beginPath();
+    c.moveTo(CH.left, y);
+    c.lineTo(chartW - CH.right, y);
+    c.stroke();
+    c.fillStyle = c.strokeStyle;
+    c.fillText(String(v), CH.left - 6, y);
+  }
+  c.setLineDash([]);
+  const drawStation = (k, color, width) => {
+    c.strokeStyle = color;
+    c.lineWidth = width;
+    c.beginPath();
+    let pen = false;
+    for (let i = 0; i < n; i++) {
+      const v = smog.pm25[i][k];
+      if (v === null) {
+        pen = false;
+        continue;
+      }
+      if (pen) {
+        c.lineTo(chartX(i), pmY(v));
+      } else {
+        c.moveTo(chartX(i), pmY(v));
+        pen = true;
+      }
+    }
+    c.stroke();
+  };
+  if (eastStation >= 0) {
+    drawStation(eastStation, CHART_EAST_COLOR, 1.5);
+  }
+  drawStation(worstStation, CHART_WEST_COLOR, 2);
+  const legend = (y, parts) => {
+    let x = CH.left + 5;
+    c.textAlign = "left";
+    for (const [text, color, bold] of parts) {
+      c.font = (bold ? "600 " : "") + "10.5px Segoe UI, Helvetica, Arial, sans-serif";
+      c.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      c.lineWidth = 3;
+      c.strokeText(text, x, y);
+      c.fillStyle = color;
+      c.fillText(text, x, y);
+      x += c.measureText(text).width;
+    }
+    c.font = "10.5px Segoe UI, Helvetica, Arial, sans-serif";
+  };
+  const pmParts = [["PM2.5 (µg/m³): ", "#555", false], [smog.stations[worstStation].name, CHART_WEST_COLOR, true]];
+  if (eastStation >= 0) {
+    pmParts.push(["  ", "#555", false], [smog.stations[eastStation].name, CHART_EAST_COLOR, true]);
+  }
+  legend(CH.pmTop + 6, pmParts);
+  // Lid panel: residual layer behind the mixing layer, a light line every 200 m
+  c.textAlign = "right";
+  c.fillStyle = "#777";
+  for (let m = 200; m < CHART_LID_MAX_M; m += 200) {
+    c.fillRect(CH.left, Math.round(lidY(m)), chartW - CH.left - CH.right, 0.5);
+    c.fillText(m + " m", CH.left - 6, lidY(m));
+  }
+  const fillSeries = (arr, color) => {
+    c.fillStyle = color;
+    c.beginPath();
+    c.moveTo(chartX(0), lidY(0));
+    for (let i = 0; i < n; i++) {
+      c.lineTo(chartX(i), lidY(arr[i]));
+    }
+    c.lineTo(chartX(n - 1), lidY(0));
+    c.closePath();
+    c.fill();
+  };
+  fillSeries(smog.residual, CHART_RESIDUAL_COLOR);
+  fillSeries(smog.blh, CHART_MIXING_COLOR);
+  c.fillStyle = "rgba(0, 0, 0, 0.35)";
+  c.fillRect(CH.left, Math.round(lidY(0)), chartW - CH.left - CH.right, 1);
+  legend(L.lidTop + 4, [["Lid: ", "#555", false], ["mixing layer (ERA5)", "#3d5a80", true], ["  residual (illustrative)", "#6b6f78", true]]);
+  chartLastX = -1;
+  drawChartCursor(hourFloat);
+}
+
+function drawChartCursor(h) {
+  if (!chartBase || !chartToggle.checked) {
+    return;
+  }
+  const x = Math.round(chartX(Math.max(0, Math.min(smog.times.length - 1, h))) * chartScale);
+  if (x === chartLastX) {
+    return;
+  }
+  chartLastX = x;
+  const c = chartCanvas.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+  c.drawImage(chartBase, 0, 0);
+  c.fillStyle = "#111";
+  c.fillRect(x - Math.round(chartScale), Math.round(CH.pmTop * chartScale), Math.max(2, Math.round(1.5 * chartScale)), chartCanvas.height);
+}
+
+function chartPick(ev) {
+  const r = chartCanvas.getBoundingClientRect();
+  const f = (ev.clientX - r.left - CH.left) / (r.width - CH.left - CH.right);
+  const i = Math.round(Math.max(0, Math.min(1, f)) * (smog.times.length - 1));
+  hourFloat = i;
+  setHour(i);
+}
+
+let chartDragging = false;
+chartCanvas.addEventListener("pointerdown", ev => {
+  if (!smog) {
+    return;
+  }
+  chartDragging = true;
+  chartCanvas.setPointerCapture(ev.pointerId);
+  chartPick(ev);
+});
+chartCanvas.addEventListener("pointermove", ev => {
+  if (chartDragging) {
+    chartPick(ev);
+  }
+});
+chartCanvas.addEventListener("pointerup", () => {
+  chartDragging = false;
+});
+chartToggle.addEventListener("change", buildChart);
+window.addEventListener("resize", buildChart);
+
+// ---------- explainer ----------
+function showExplain(on) {
+  $("explain").style.display = on ? "block" : "none";
+}
+$("explainLink").addEventListener("click", () => showExplain($("explain").style.display !== "block"));
+$("explainClose").addEventListener("click", () => showExplain(false));
+window.addEventListener("keydown", ev => {
+  if (ev.key === "Escape") {
+    showExplain(false);
+  }
+});
+
+// ---------- time ----------
+function setHour(i) {
+  hourIndex = Math.max(0, Math.min(smog.times.length - 1, i));
+  timeSlider.value = hourIndex;
+  field = buildField(stationValues(hourIndex));
+  cacheFieldRGBA();
+  drawSheets();
+  updateInfo();
+  drawChartCursor(playing ? hourFloat : hourIndex);
+  render();
+}
+
+function render() {
+  const ms = new Date(smog.times[hourIndex]).getTime();
+  const lighting = makeLighting(ms);
+  updateFog();
+  deckgl.setProps({ layers: makeLayers(), effects: [lighting] });
+}
+
+function frame(now) {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000);
+  lastFrame = now;
+  if (smog) {
+    if (playing) {
+      hourFloat += dt * Number(speedSel.value);
+      if (hourFloat >= smog.times.length) {
+        hourFloat = 0;
+      }
+      if (Math.floor(hourFloat) !== hourIndex) {
+        setHour(Math.floor(hourFloat));
+      }
+      drawChartCursor(hourFloat);
+    }
+    cloudX += smog.u[hourIndex] * CLOUD_DRIFT * dt * -1;
+    cloudY += smog.v[hourIndex] * CLOUD_DRIFT * dt;
+    cloudBoil += CLOUD_BOIL * dt;
+    let changed = false;
+    if (sheetBox.checked && now - lastCloudDraw > 1000 / CLOUD_UPDATES_PER_SECOND) {
+      drawSheets();
+      lastCloudDraw = now;
+      changed = true;
+    }
+    if (particleBox.checked) {
+      stepParticles(dt);
+      changed = true;
+    }
+    updateFog();
+    if (changed) {
+      deckgl.setProps({ layers: makeLayers() });
+    } else {
+      deckgl.redraw("fog");
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  hourFloat = hourIndex;
+});
+timeSlider.addEventListener("input", () => {
+  hourFloat = Number(timeSlider.value);
+  setHour(Number(timeSlider.value));
+});
+for (const box of [sheetBox, tintBox, shadowBox, fogBox, stationBox]) {
+  box.addEventListener("change", render);
+}
+particleBox.addEventListener("change", render);
+lensSel.addEventListener("change", () => deckgl.setProps({ views: makeView() }));
+
+// ---------- load ----------
+const t0 = performance.now();
+Promise.all([fetch(BUILDINGS_URL).then(r => r.json()), fetch(SMOG_URL).then(r => r.json())]).then(([bdata, sdata]) => {
+  smog = sdata;
+  baseAlt = smog.meta.base_alt_m;
+  buildings = new Array(bdata.rows.length);
+  for (let i = 0; i < bdata.rows.length; i++) {
+    const row = bdata.rows[i];
+    const ground = row[4];
+    const flat = row[5];
+    const ring = new Array(flat.length / 2);
+    for (let j = 0; j < flat.length; j += 2) {
+      ring[j / 2] = [flat[j], flat[j + 1], ground + row[1]];
+    }
+    buildings[i] = { h: row[0], mh: row[1], z0: ground + row[1], cx: flat[0], cy: flat[1], polygon: ring };
+  }
+  // Replace the OSM pieces of the Gran Torre Costanera (all 0 to 300 m) by the modelled tower.
+  const kxT = 111320 * Math.cos(TOWER_CENTRE[1] * Math.PI / 180);
+  let towerGround = 632;
+  buildings = buildings.filter(b => {
+    const dx = (b.cx - TOWER_CENTRE[0]) * kxT;
+    const dy = (b.cy - TOWER_CENTRE[1]) * 111320;
+    const isPiece = b.h >= TOWER_HEIGHT_M - 5 && Math.hypot(dx, dy) < 45;
+    if (isPiece) {
+      towerGround = Math.min(towerGround, b.z0 - b.mh);
+    }
+    return !isPiece;
+  });
+  towerSlices = buildTower(towerGround);
+  let best = -1;
+  smog.stations.forEach((s, k) => {
+    const mx = Math.max(...smog.pm25.map(r => r[k] === null ? 0 : r[k]));
+    if (mx > best) {
+      best = mx;
+      worstStation = k;
+    }
+    if (s.name === EAST_STATION) {
+      eastStation = k;
+    }
+  });
+  buildGroundGrid();
+  buildStationFade();
+  buildStationData();
+  timeSlider.max = smog.times.length - 1;
+  let start = smog.times.findIndex(t => t.startsWith(START_TIME));
+  if (start < 0) {
+    start = 0;
+  }
+  for (let k = 0; k < PARTICLE_COUNT; k++) {
+    respawn(k, smog.residual[start]);
+  }
+  drawLegend();
+  hourFloat = start;
+  buildChart();
+  setHour(start);
+  showView(START_VIEW);
+  $("status").textContent = buildings.length.toLocaleString() + " buildings, " + smog.times.length + " hours loaded in " + ((performance.now() - t0) / 1000).toFixed(1) + " s";
+  requestAnimationFrame(frame);
+}).catch(err => {
+  $("status").textContent = "Could not load data: " + err;
+});
+</script>
+</body>
+</html>
